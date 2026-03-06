@@ -32,6 +32,8 @@ void frame(){
 		.action = pass_action,
 		.swapchain = sglue_swapchain(),
 	});
+	sg_end_pass();
+	sg_commit();
 }
 
 void cleanup(){
