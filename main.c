@@ -22,9 +22,9 @@ void init(){
 
 	float vertices[] = {
 		// posititions (xyz)	// colors (rgba)
-		.0f, .5f, .5f,		//1.0f, .0f, .0f, 1.0f,
-		.5f, -.5f, .5f,		//.0f, 1.0f, .0f, 1.0f,
-		-.5f, -.5f, .5f,	//.0f, .0f, 1.0f, 1.0f,
+		.0f, .5f, .5f,		1.0f, .0f, .0f, 1.0f,
+		.5f, -.5f, .5f,		.0f, 1.0f, .0f, 1.0f,
+		-.5f, -.5f, .5f,	.0f, .0f, 1.0f, 1.0f,
 	};
 
 	state.bind.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc){
@@ -39,6 +39,7 @@ void init(){
 		.layout = {
 			.attrs = {
 				[ATTR_triangle_pos].format = SG_VERTEXFORMAT_FLOAT3,
+				[ATTR_triangle_color0].format = SG_VERTEXFORMAT_FLOAT4,
 			},
 		},
 		.label = "triangle_pipeline",
