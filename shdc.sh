@@ -1,4 +1,3 @@
-cd C:/Users/Macch/OneDrive/Desktop/s/gaming
 input="$1"
 suffix=".h"
 new_name="${input}${suffix}"

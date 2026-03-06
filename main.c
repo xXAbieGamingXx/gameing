@@ -1,11 +1,14 @@
 #define SOKOL_IMPL
 #define SOKOL_GLCORE
 #define SOKOL_WWIN32_FORCE_WINMAIN
+#include <stdio.h>
+#include <stdbool.h>
 #include "sokol_gfx.h"
 #include "sokol_app.h"
 #include "sokol_log.h"
 #include "sokol_glue.h"
-#include "triangle.glsl.h"
+#include "input.h"
+#include "rectangle.glsl.h"
 
 static struct{
 	sg_pipeline pip;
@@ -13,6 +16,17 @@ static struct{
 	sg_pass_action pass_action;
 } state;
 
+#define WALKING_SPEED 10 // 10 units per sec
+#define RECT_LOCATION 70 // +70 from 0,0
+#define HEIGHT_CONSTANT 100
+
+double delta_time = 0;
+
+typedef struct Player {
+	float x, y, z;
+} Player;
+
+Player player = {0};
 
 void init(){
 	sg_setup(&(sg_desc){
@@ -20,29 +34,24 @@ void init(){
 		.logger.func = slog_func,
 	});
 
-	float vertices[] = {
-		// posititions (xyz)	// colors (rgba)
-		.0f, .5f, .5f,		1.0f, .0f, .0f, 1.0f,
-		.5f, -.5f, .5f,		.0f, 1.0f, .0f, 1.0f,
-		-.5f, -.5f, .5f,	.0f, .0f, 1.0f, 1.0f,
-	};
-
 	state.bind.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc){
-		.data = SG_RANGE(vertices),
-		.label = "triangle_vertices",
+		.usage = {
+			.immutable = false,
+			.stream_update = true,
+		},
+		.size = sizeof(float)*18,
+		.label = "rectangle_vertices",
 	});
 
-	sg_shader tri_shd = sg_make_shader(triangle_shader_desc(sg_query_backend()));
+	sg_shader rect_shd = sg_make_shader(rectangle_shader_desc(sg_query_backend()));
 
 	state.pip = sg_make_pipeline(&(sg_pipeline_desc){
-		.shader = tri_shd,
+		.shader = rect_shd,
 		.layout = {
 			.attrs = {
-				[ATTR_triangle_pos].format = SG_VERTEXFORMAT_FLOAT3,
-				[ATTR_triangle_color0].format = SG_VERTEXFORMAT_FLOAT4,
+				[ATTR_rectangle_pos].format = SG_VERTEXFORMAT_FLOAT3,
 			},
 		},
-		.label = "triangle_pipeline",
 	});
 
 	state.pass_action = (sg_pass_action){
@@ -54,13 +63,29 @@ void init(){
 }
 
 void frame(){
+	delta_time = sapp_frame_duration();
+	float direction = key_down(SAPP_KEYCODE_W) - key_down(SAPP_KEYCODE_S);
+	player.x += direction * WALKING_SPEED * delta_time;
+	float distance = RECT_LOCATION - player.x;
+	float height = (HEIGHT_CONSTANT/distance)/720; // /720 to scale from 0 to 1
+	float vertices[] = {
+		height, height, .5f,
+		-height, height, .5f,
+		height, -height, .5f,
+		-height, -height, .5f,
+		-height, height, .5f,
+		height, -height, .5f,
+	};
+	sg_update_buffer(state.bind.vertex_buffers[0], &SG_RANGE(vertices));
 	sg_begin_pass(&(sg_pass){
 		.action = state.pass_action,
 		.swapchain = sglue_swapchain(),
 	});
-	sg_apply_pipeline(state.pip);
-	sg_apply_bindings(&state.bind);
-	sg_draw(0, 3, 1); // start at 0, do 3 elements
+	if(player.x < RECT_LOCATION){
+		sg_apply_pipeline(state.pip);
+		sg_apply_bindings(&state.bind);
+		sg_draw(0, 6, 1);
+	}
 	sg_end_pass();
 	sg_commit();
 }
@@ -69,16 +94,19 @@ void cleanup(){
 	sg_shutdown();
 }
 
-void event(const sapp_event* ev){}
+void event(const sapp_event* ev){
+	handle_input(ev);
+}
 
 sapp_desc sokol_main(int argc, char* argv[]){
 	(void)argc; (void)argv; 
 	return (sapp_desc) {
-		.width = 640,
-		.height = 480,
+		.width = 1280,
+		.height = 720,
 		.init_cb = init,
 		.frame_cb = frame,
 		.cleanup_cb = cleanup,
+		.event_cb = event,
 		.logger.func = slog_func,
 		.window_title = "gmaing",
 	};
