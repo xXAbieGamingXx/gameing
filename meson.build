@@ -6,6 +6,12 @@ project(
   default_options : ['warning_level=2', 'c_std=c11'],
 )
 
+shaders = ['triangle.glsl']
+foreach shader : shaders
+  run_command('bash', ['./shdc.sh', shader], check: true)
+endforeach
+
+
 # sokol_shdc = find_program('C:\\Users\\Macch\\OneDrive\\Desktop\\s\\gaming\\tools\\sokol-shdc')
 
 # triangle = custom_target(
@@ -26,7 +32,7 @@ project(
 
 exe = executable(
   'gaming',
-  ['main.c', 'sokol_app.h', 'sokol_gfx.h', 'sokol_glue.h', 'sokol_log.h'],
+  ['main.c', 'sokol_app.h', 'sokol_gfx.h', 'sokol_glue.h', 'sokol_log.h', 'triangle.glsl.h'],
   # dependencies : triangle_dep,
   install : true,
 )
