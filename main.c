@@ -26,7 +26,8 @@ struct Vertex{
 } vertex;
 
 #define WALKING_SPEED 10 // 10 units per sec
-#define RECT_LOCATION 70 // +70 from 0,0
+// #define RECT_LOCATION 70 // +70 from 0,0
+#define RECT_LOCATION 5 
 #define HEIGHT_CONSTANT 100
 
 double delta_time = 0;
@@ -92,7 +93,7 @@ void init(){
 		.layout = {
 			.attrs = {
 				[ATTR_rectangle_pos].format = SG_VERTEXFORMAT_FLOAT3,
-				// [ATTR_rectangle_texcoord0].format = SG_VERTEXFORMAT_SHORT2N,
+				// [ATTR_rectangle_texcoord0].format = SG_VERTEXFORMAT_SHORT2N, // this is more optimized but idk why it wont work
 				[ATTR_rectangle_texcoord0].format = SG_VERTEXFORMAT_FLOAT2,
 			},
 		},
@@ -118,10 +119,10 @@ void frame(){
 	float distance = RECT_LOCATION - player.x;
 	float height = (HEIGHT_CONSTANT/distance)/720; // /720 to scale from 0 to 1
 	float vertices[] = { // x, y, (zbuf?), u (horizontal), v (vertical)
-		height , height , .5f, 1.0f , 1.0f ,
-		-height, height , .5f, -1.0f, 1.0f ,
-		height , -height, .5f, 1.0f , -1.0f,
-		height, -height, .5f, -1.0f, -1.0f,
+		height , height , .5f, 1.0f , -1.0f,
+		-height, height , .5f, -1.0f, -1.0f,
+		height , -height, .5f, 1.0f , 1.0f ,
+		-height, -height, .5f, -1.0f, 1.0f ,
 	};
 	// printf("(%f, %f, %f, %f, %f)\n", vertices[0], vertices[1], vertices[2], vertices[3], vertices[4]);
 
