@@ -1,11 +1,16 @@
+@ctype mat4 mat44_t
+
 @vs vs
+layout(binding = 0) uniform mvp_params{
+	mat4 mvp;
+};
 
 in vec4 pos;
 in vec2 texcoord0;
 out vec2 uv;
 
 void main(){
-	gl_Position = pos;
+	gl_Position = mvp * pos;
 	uv = texcoord0;
 }
 

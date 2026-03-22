@@ -1,4 +1,5 @@
 #define SOKOL_IMPL
+#define VECMATH_GENERICS
 #define SOKOL_GLCORE
 #include <stdio.h>
 #include <stdbool.h>
@@ -8,6 +9,7 @@
 #include "sokol_fetch.h"
 #include "sokol_glue.h"
 #include "input.h"
+#include "util/vecmath.h"
 #include "rectangle.glsl.h"
 #include "util/fileutil.h"
 #define STB_IMAGE_IMPLEMENTATION
@@ -29,6 +31,7 @@ struct Vertex{
 // #define RECT_LOCATION 70 // +70 from 0,0
 #define RECT_LOCATION 5 
 #define HEIGHT_CONSTANT 100
+#define FOV 60
 
 double delta_time = 0;
 
@@ -39,6 +42,7 @@ typedef struct Player {
 Player player = {0};
 
 static void fetch_cb(const sfetch_response_t* response);
+static mvp_params_t calculate_mvp();
 
 void init(){
 	sg_setup(&(sg_desc){
@@ -113,18 +117,14 @@ void frame(){
 
 	delta_time = sapp_frame_duration();
 
-	float direction = key_down(SAPP_KEYCODE_W) - key_down(SAPP_KEYCODE_S);
-	player.x += direction * WALKING_SPEED * delta_time;
-
-	float distance = RECT_LOCATION - player.x;
-	float height = (HEIGHT_CONSTANT/distance)/720; // /720 to scale from 0 to 1
-	const struct Vertex vertices[] = { // x, y, (zbuf?), u (horizontal), v (vertical)
-		{height , height , .5f, 32767, 0    },
-		{-height, height , .5f, 0    , 0    },
-		{height , -height, .5f, 32767, 32767},
-		{-height, -height, .5f, 0    , 32767},
+	const struct Vertex vertices[] = { // x, y, z, u (horizontal), v (vertical)
+		{1.0f , 1.0f , .0f, 32767, 0    },
+		{-1.0f, 1.0f , .0f, 0    , 0    },
+		{1.0f , -1.0f, .0f, 32767, 32767},
+		{-1.0f, -1.0f, .0f, 0    , 32767},
 	};
-	// printf("(%f, %f, %f, %f, %f)\n", vertices[0], vertices[1], vertices[2], vertices[3], vertices[4]);
+
+	const mvp_params_t mvp_params = calculate_mvp();
 
 	sg_update_buffer(state.bind.vertex_buffers[0], &SG_RANGE(vertices));
 	sg_begin_pass(&(sg_pass){
@@ -135,6 +135,7 @@ void frame(){
 	if(player.x < RECT_LOCATION){
 		sg_apply_pipeline(state.pip);
 		sg_apply_bindings(&state.bind);
+		sg_apply_uniforms(UB_mvp_params, &SG_RANGE(mvp_params));
 		sg_draw(0, 6, 1);
 	}
 
@@ -204,6 +205,28 @@ static void fetch_cb(const sfetch_response_t* response){
 			};
 		}
 	}
+}
+
+static mvp_params_t calculate_mvp(){
+	float direction = key_down(SAPP_KEYCODE_W) - key_down(SAPP_KEYCODE_S);
+	player.x += direction * WALKING_SPEED * delta_time;
+
+	float distance = RECT_LOCATION - player.x;
+	const float w = sapp_widthf();
+	const float h = sapp_heightf();
+	// rh = measuring angles counterclockwise
+	mat44_t proj = mat44_perspective_fov_rh(vm_radians((float)FOV), w/h, .01f, 100.0f);
+	// camera location in space, camera center (where it is looking), up direction
+	mat44_t view = mat44_look_at_rh(vec3(player.x, player.y, player.z), vec3(10000.0f, 0,  0), vec3(.0f, .0f, 1.0f)); 
+	mat44_t view_proj = vm_mul(view, proj);
+	mat44_t translate = mat44_translation(distance, .0f, .0f); 
+	// i think that the axes are flipped or smth
+	mat44_t ry = mat44_rotation_y(vm_radians(90.0f));
+	mat44_t rx = mat44_rotation_x(vm_radians(90.0f));
+	mat44_t rotation = vm_mul(ry, rx);
+	mat44_t model = vm_mul(rotation, translate);
+	mat44_t mvp = vm_mul(model, view_proj);
+	return (mvp_params_t){.mvp = mvp};
 }
 
 void event(const sapp_event* ev){
