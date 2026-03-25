@@ -1,4 +1,8 @@
-#define SOKOL_IMPL
+#define SOKOL_GFX_IMPL
+#define SOKOL_APP_IMPL
+#define SOKOL_LOG_IMPL
+#define SOKOL_FETCH_IMPL
+#define SOKOL_GLUE_IMPL
 #define VECMATH_GENERICS
 #define SOKOL_GLCORE
 #include <stdio.h>
@@ -12,8 +16,9 @@
 #include "util/vecmath.h"
 #include "rectangle.glsl.h"
 #include "util/fileutil.h"
-#define STB_IMAGE_IMPLEMENTATION
 #include "util/stb/stb_image.h"
+#include "plane.h"
+#include "player.h"
 
 static struct{
 	sg_pipeline pip;
@@ -28,18 +33,11 @@ struct Vertex{
 } vertex;
 
 #define WALKING_SPEED 10 // 10 units per sec
-// #define RECT_LOCATION 70 // +70 from 0,0
 #define RECT_LOCATION 5 
 #define HEIGHT_CONSTANT 100
-#define FOV 60
+#define FOV 60 // also defined in plane.c xd
 
 double delta_time = 0;
-
-typedef struct Player {
-	float x, y, z;
-} Player;
-
-Player player = {0};
 
 static void fetch_cb(const sfetch_response_t* response);
 static mvp_params_t calculate_mvp();
@@ -57,11 +55,13 @@ void init(){
 		.logger.func = slog_func,
 	});
 
+	plane_init();
+
 	state.pass_action = (sg_pass_action){
 		.colors[0] = {
 			.load_action = SG_LOADACTION_CLEAR,
 			.clear_value = {.0f, .0f, .0f, 1.0f}
-	},
+		},
 	};
 
 	state.bind.views[VIEW_tex] = sg_alloc_view();
@@ -98,7 +98,6 @@ void init(){
 			.attrs = {
 				[ATTR_rectangle_pos].format = SG_VERTEXFORMAT_FLOAT3,
 				[ATTR_rectangle_texcoord0].format = SG_VERTEXFORMAT_SHORT2N,
-				// [ATTR_rectangle_texcoord0].format = SG_VERTEXFORMAT_FLOAT2,
 			},
 		},
 		.index_type = SG_INDEXTYPE_UINT16,
@@ -118,10 +117,10 @@ void frame(){
 	delta_time = sapp_frame_duration();
 
 	const struct Vertex vertices[] = { // x, y, z, u (horizontal), v (vertical)
-		{1.0f , 1.0f , .0f, 32767, 0    },
-		{-1.0f, 1.0f , .0f, 0    , 0    },
-		{1.0f , -1.0f, .0f, 32767, 32767},
-		{-1.0f, -1.0f, .0f, 0    , 32767},
+		{1.0f , 1.0f , .1f, 32767, 0    },
+		{-1.0f, 1.0f , .1f, 0    , 0    },
+		{1.0f , -1.0f, .1f, 32767, 32767},
+		{-1.0f, -1.0f, .1f, 0    , 32767},
 	};
 
 	const mvp_params_t mvp_params = calculate_mvp();
@@ -217,14 +216,14 @@ static mvp_params_t calculate_mvp(){
 	// rh = measuring angles counterclockwise
 	mat44_t proj = mat44_perspective_fov_rh(vm_radians((float)FOV), w/h, .01f, 100.0f);
 	// camera location in space, camera center (where it is looking), up direction
-	mat44_t view = mat44_look_at_rh(vec3(player.x, player.y, player.z), vec3(10000.0f, 0,  0), vec3(.0f, .0f, 1.0f)); 
+	mat44_t view = mat44_look_at_rh(vec3(player.x, player.y, player.z), vec3(10000.0f, 0,  0), vec3(.0f, .0f, 1.0f));
 	mat44_t view_proj = vm_mul(view, proj);
 	mat44_t translate = mat44_translation(distance, .0f, .0f); 
-	// i think that the axes are flipped or smth
-	mat44_t ry = mat44_rotation_y(vm_radians(90.0f));
-	mat44_t rx = mat44_rotation_x(vm_radians(90.0f));
+	// it just likes to put things on the ceiling
+	mat44_t ry = mat44_rotation_y(vm_radians(0.0f));
+	mat44_t rx = mat44_rotation_x(vm_radians(0.0f));
 	mat44_t rotation = vm_mul(ry, rx);
-	mat44_t model = vm_mul(rotation, translate);
+	mat44_t model = vm_mul(translate, rotation);
 	mat44_t mvp = vm_mul(model, view_proj);
 	return (mvp_params_t){.mvp = mvp};
 }

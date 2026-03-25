@@ -1,4 +1,5 @@
-#include "main.h"
+#include <stdbool.h>
+#include "sokol_app.h"
 
 bool key_states[SAPP_MAX_KEYCODES] = {0};
 typedef struct mouse_state {

@@ -1,6 +1,9 @@
 #define VECMATH_GENERICS
+<<<<<<< HEAD
 #include <math.h>
 #include <stdbool.h>
+=======
+>>>>>>> 5de0e5c (i need to check)
 #include "player.h"
 #include "sokol_gfx.h"
 #include "sokol_app.h"
@@ -28,6 +31,7 @@ void plane_init(){
 }
 
 void draw_plane(struct plane_desc* desc){ // will draw a plane oriented on the x axis with up as up
+<<<<<<< HEAD
 	desc->rx += 90;
 	desc->rz += 270;
 	if(desc->sx == 0){
@@ -69,4 +73,11 @@ static void draw_plane_helper(struct plane_desc* desc){
 		scaling = mat44_scaling(sx, sy, sz);
 		mat44_t scale_rotate = vm_mul(scaling, rotation);
 	}
+=======
+	
+}
+
+static void draw_plane_helper(struct plane_desc* desc){
+
+>>>>>>> 5de0e5c (i need to check)
 }
