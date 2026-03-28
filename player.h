@@ -8,4 +8,4 @@ struct Player {
 
 extern struct Player player;
 
-vec3 player_direction(); // direction vector
+extern vec3_t player_direction(); // direction vector

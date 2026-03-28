@@ -2,12 +2,12 @@
 #include "sokol_app.h"
 
 bool key_states[SAPP_MAX_KEYCODES] = {0};
-typedef struct mouse_state {
+struct mouse_state {
 	bool lmb, rmb, mmb;
-	float x, y, dx, dy, scroll;
+	float x, y, dx, dy, scroll; // dx dy are changes
 } mouse_state;
 
-mouse_state mouse = {0};
+struct mouse_state mouse = {0};
 
 void handle_input(const sapp_event* ev){
 	if(ev->type == SAPP_EVENTTYPE_KEY_DOWN){
@@ -45,6 +45,6 @@ bool key_down(sapp_keycode code){
 	return key_states[code];
 }
 
-mouse_state get_mouse_state(){
+struct mouse_state get_mouse_state(){
 	return mouse;
 }

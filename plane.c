@@ -1,9 +1,7 @@
 #define VECMATH_GENERICS
-<<<<<<< HEAD
+#include <stdio.h>
 #include <math.h>
 #include <stdbool.h>
-=======
->>>>>>> 5de0e5c (i need to check)
 #include "player.h"
 #include "sokol_gfx.h"
 #include "sokol_app.h"
@@ -20,9 +18,16 @@ struct plane_desc {
 	sg_bindings bind;
 };
 
+struct Vertex {
+	float x, y, z;
+	float u, v;
+};
+
 static mat44_t proj; 
 static float w;
 static float h;
+
+static void draw_plane_helper(struct plane_desc* desc);
 
 void plane_init(){
 	w = sapp_widthf();
@@ -31,9 +36,7 @@ void plane_init(){
 }
 
 void draw_plane(struct plane_desc* desc){ // will draw a plane oriented on the x axis with up as up
-<<<<<<< HEAD
 	desc->rx += 90;
-	desc->rz += 270;
 	if(desc->sx == 0){
 		desc->sx = 1;
 	}
@@ -51,33 +54,34 @@ void draw_plane(struct plane_desc* desc){ // will draw a plane oriented on the x
 
 static void draw_plane_helper(struct plane_desc* desc){
 	// math.h trig is in radians
-	mat44_t view = mat44_look_at_rh(vec(player.x, player.y, player.z), player_direction(), vec3(.0f, .0f, 1.0f));
+	vec3_t direction = player_direction(); // dont want to look straight at (0, 0, 0)
+	direction.x += player.x;
+	direction.y += player.y;
+	direction.z += player.z;
+	mat44_t view = mat44_look_at_rh(vec3(player.x, player.y, player.z), direction, vec3(.0f, .0f, 1.0f));
 	mat44_t view_proj = vm_mul(view, proj);
 	mat44_t translation = mat44_translation(desc->x-player.x, desc->y-player.y, desc->z-player.z); // always will be defined
 	mat44_t rotation;
 	mat44_t model;
 	mat44_t rx = mat44_rotation_x(vm_radians(desc->rx));
 	mat44_t rz = mat44_rotation_z(vm_radians(desc->rz));
-	if(desc->ry == 0.0f){
-		rotation = vm_mul(rx, rz);
-	}else{
-		ry = mat44_rotation_y(vm_radians(desc->ry));
-		mat44_t rxy = vm_mul(rx, ry);
-		rotation = vm_mul(rxy, rz);
-	}
+	mat44_t ry = mat44_rotation_y(vm_radians(desc->ry));
+	mat44_t rxy = vm_mul(ry, rx);
+	rotation = vm_mul(rz, rxy);
 	mat44_t scaling;
-	bool scaling_defined = true;
-	if(desc->sx == 1 && desc.sy == 1 && desc.sz == 1){
-		model = vm_mul(rotation, translation);
+	if(desc->sx == 1 && desc->sy == 1 && desc->sz == 1){
+		model = vm_mul(translation, rotation);
 	}else{
-		scaling = mat44_scaling(sx, sy, sz);
+		scaling = mat44_scaling(desc->sx, desc->sy, desc->sz);
 		mat44_t scale_rotate = vm_mul(scaling, rotation);
+		model = vm_mul(translation, scale_rotate);
 	}
-=======
-	
-}
+	mat44_t mvp = vm_mul(model, view_proj);
 
-static void draw_plane_helper(struct plane_desc* desc){
+	const mvp_params_t mvp_params = (mvp_params_t){.mvp = mvp};
 
->>>>>>> 5de0e5c (i need to check)
+	sg_apply_pipeline(desc->pip); // might ned to pass in a pointer
+	sg_apply_bindings(&desc->bind);
+	sg_apply_uniforms(UB_mvp_params, &SG_RANGE(mvp_params));
+	sg_draw(0, 6, 1);
 }

@@ -5,6 +5,7 @@
 #define SOKOL_GLUE_IMPL
 #define VECMATH_GENERICS
 #define SOKOL_GLCORE
+#define STB_IMAGE_IMPLEMENTATION
 #include <stdio.h>
 #include <stdbool.h>
 #include "sokol_gfx.h"
@@ -25,22 +26,21 @@ static struct{
 	sg_bindings bind;
 	sg_pass_action pass_action;
 	uint8_t file_buffer[500000];
+	struct mouse_state* mouse;
 } state;
 
-struct Vertex{
+struct Vertex {
 	float x, y, z;
-	uint16_t u, v;
-} vertex;
+	short u, v;
+};
 
 #define WALKING_SPEED 10 // 10 units per sec
-#define RECT_LOCATION 5 
-#define HEIGHT_CONSTANT 100
 #define FOV 60 // also defined in plane.c xd
+#define SENSITIVITY .25
 
 double delta_time = 0;
 
 static void fetch_cb(const sfetch_response_t* response);
-static mvp_params_t calculate_mvp();
 
 void init(){
 	sg_setup(&(sg_desc){
@@ -72,12 +72,15 @@ void init(){
 		.label = "texture-test",
 	});
 
+	const struct Vertex vertices[] = { // x, y, z, u (horizontal), v (vertical)
+		{1.0f , 1.0f , .1f, 32767, 0    },
+		{-1.0f, 1.0f , .1f, 0    , 0    },
+		{1.0f , -1.0f, .1f, 32767, 32767},
+		{-1.0f, -1.0f, .1f, 0    , 32767},
+	};
+
 	state.bind.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc){
-		.usage = {
-			.immutable = false,
-			.stream_update = true,
-		},
-		.size = sizeof(float)*30,
+		.data = SG_RANGE(vertices),
 		.label = "rectangle_vertices",
 	});
 
@@ -116,27 +119,29 @@ void frame(){
 
 	delta_time = sapp_frame_duration();
 
-	const struct Vertex vertices[] = { // x, y, z, u (horizontal), v (vertical)
-		{1.0f , 1.0f , .1f, 32767, 0    },
-		{-1.0f, 1.0f , .1f, 0    , 0    },
-		{1.0f , -1.0f, .1f, 32767, 32767},
-		{-1.0f, -1.0f, .1f, 0    , 32767},
-	};
+	float direction = key_down(SAPP_KEYCODE_W) - key_down(SAPP_KEYCODE_S);
+	player.x += direction * WALKING_SPEED * delta_time;
 
-	const mvp_params_t mvp_params = calculate_mvp();
+	direction = key_down(SAPP_KEYCODE_D) - key_down(SAPP_KEYCODE_A);
+	player.y += direction * WALKING_SPEED * delta_time; // why tf is this sending me diagonally
 
-	sg_update_buffer(state.bind.vertex_buffers[0], &SG_RANGE(vertices));
+
 	sg_begin_pass(&(sg_pass){
 		.action = state.pass_action,
 		.swapchain = sglue_swapchain(),
 	});
 
-	if(player.x < RECT_LOCATION){
-		sg_apply_pipeline(state.pip);
-		sg_apply_bindings(&state.bind);
-		sg_apply_uniforms(UB_mvp_params, &SG_RANGE(mvp_params));
-		sg_draw(0, 6, 1);
-	}
+	draw_plane(&(struct plane_desc){
+		.x = 5,
+		.pip = state.pip,
+		.bind = state.bind,
+	});
+
+	// draw_plane(&(struct plane_desc){
+	// 	.rz = 90,
+	// 	.pip = state.pip,
+	// 	.bind = state.bind,
+	// });
 
 	sg_end_pass();
 	sg_commit();
@@ -206,30 +211,13 @@ static void fetch_cb(const sfetch_response_t* response){
 	}
 }
 
-static mvp_params_t calculate_mvp(){
-	float direction = key_down(SAPP_KEYCODE_W) - key_down(SAPP_KEYCODE_S);
-	player.x += direction * WALKING_SPEED * delta_time;
-
-	float distance = RECT_LOCATION - player.x;
-	const float w = sapp_widthf();
-	const float h = sapp_heightf();
-	// rh = measuring angles counterclockwise
-	mat44_t proj = mat44_perspective_fov_rh(vm_radians((float)FOV), w/h, .01f, 100.0f);
-	// camera location in space, camera center (where it is looking), up direction
-	mat44_t view = mat44_look_at_rh(vec3(player.x, player.y, player.z), vec3(10000.0f, 0,  0), vec3(.0f, .0f, 1.0f));
-	mat44_t view_proj = vm_mul(view, proj);
-	mat44_t translate = mat44_translation(distance, .0f, .0f); 
-	// it just likes to put things on the ceiling
-	mat44_t ry = mat44_rotation_y(vm_radians(0.0f));
-	mat44_t rx = mat44_rotation_x(vm_radians(0.0f));
-	mat44_t rotation = vm_mul(ry, rx);
-	mat44_t model = vm_mul(translate, rotation);
-	mat44_t mvp = vm_mul(model, view_proj);
-	return (mvp_params_t){.mvp = mvp};
-}
-
 void event(const sapp_event* ev){
 	handle_input(ev);
+	struct mouse_state mouse = get_mouse_state();
+	state.mouse = &mouse;
+
+	player.rz -= state.mouse->dx*SENSITIVITY; // z is the one that does that
+	player.ry += state.mouse->dy*SENSITIVITY;
 }
 
 sapp_desc sokol_main(int argc, char* argv[]){
