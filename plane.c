@@ -37,6 +37,7 @@ void plane_init(){
 
 void draw_plane(struct plane_desc* desc){ // will draw a plane oriented on the x axis with up as up
 	desc->rx += 90;
+	desc->rz += 90;
 	if(desc->sx == 0){
 		desc->sx = 1;
 	}
@@ -64,19 +65,21 @@ static void draw_plane_helper(struct plane_desc* desc){
 	mat44_t rotation;
 	mat44_t model;
 	mat44_t rx = mat44_rotation_x(vm_radians(desc->rx));
-	mat44_t rz = mat44_rotation_z(vm_radians(desc->rz));
-	mat44_t ry = mat44_rotation_y(vm_radians(desc->ry));
+	mat44_t ry = mat44_rotation_z(vm_radians(desc->ry));
+	mat44_t rz = mat44_rotation_y(vm_radians(desc->rz));
 	mat44_t rxy = vm_mul(ry, rx);
 	rotation = vm_mul(rz, rxy);
 	mat44_t scaling;
 	if(desc->sx == 1 && desc->sy == 1 && desc->sz == 1){
-		model = vm_mul(translation, rotation);
+		model = vm_mul(rotation, translation);
 	}else{
 		scaling = mat44_scaling(desc->sx, desc->sy, desc->sz);
-		mat44_t scale_rotate = vm_mul(rotation, translation);
-		model = vm_mul(scaling, scale_rotate);
+		mat44_t rotate_translate = vm_mul(rotation, translation);
+		model = vm_mul(scaling, rotate_translate);
 	}
 	mat44_t mvp = vm_mul(model, view_proj);
+
+	// int d = 1/0;
 
 	const mvp_params_t mvp_params = (mvp_params_t){.mvp = mvp};
 

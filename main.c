@@ -43,6 +43,8 @@ double delta_time = 0;
 
 static void fetch_cb(const sfetch_response_t* response);
 
+void cleanup();
+
 void init(){
 	sg_setup(&(sg_desc){
 		.environment = sglue_environment(),
@@ -57,6 +59,8 @@ void init(){
 	});
 
 	plane_init();
+
+	sapp_lock_mouse(true);
 
 	state.pass_action = (sg_pass_action){
 		.colors[0] = {
@@ -116,6 +120,10 @@ void init(){
 }
 
 void frame(){
+	if(key_down(SAPP_KEYCODE_ESCAPE)){
+		cleanup();
+	}
+
 	sfetch_dowork();
 
 	delta_time = sapp_frame_duration();
@@ -143,8 +151,6 @@ void frame(){
 	y_movement.y *= multiplier;
 	player_add_vector(y_movement);
 	
-	printf("%f, %f, %f\n", player.x, player.y, player.z);
-
 	sg_begin_pass(&(sg_pass){
 		.action = state.pass_action,
 		.swapchain = sglue_swapchain(),
@@ -156,11 +162,11 @@ void frame(){
 		.bind = state.bind,
 	});
 
-	// draw_plane(&(struct plane_desc){
-	// 	.rz = 90,
-	// 	.pip = state.pip,
-	// 	.bind = state.bind,
-	// });
+	draw_plane(&(struct plane_desc){
+		.rz = 90,
+		.pip = state.pip,
+		.bind = state.bind,
+	});
 
 	sg_end_pass();
 	sg_commit();
