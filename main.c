@@ -7,6 +7,7 @@
 #define SOKOL_GLCORE
 #define STB_IMAGE_IMPLEMENTATION
 #include <stdio.h>
+#include <math.h>
 #include <stdbool.h>
 #include "sokol_gfx.h"
 #include "sokol_app.h"
@@ -120,11 +121,29 @@ void frame(){
 	delta_time = sapp_frame_duration();
 
 	float direction = key_down(SAPP_KEYCODE_W) - key_down(SAPP_KEYCODE_S);
-	player.x += direction * WALKING_SPEED * delta_time;
 
-	direction = key_down(SAPP_KEYCODE_D) - key_down(SAPP_KEYCODE_A);
-	player.y += direction * WALKING_SPEED * delta_time; // why tf is this sending me diagonally
+	vec3_t x_movement = player_direction();
+	x_movement.z = 0;
+	float factor = pow(x_movement.x, 2) + pow(x_movement.y, 2);
+	float multiplier = direction * WALKING_SPEED * delta_time / factor;
 
+	x_movement.x *= multiplier;
+	x_movement.y *= multiplier;
+	player_add_vector(x_movement);
+
+	direction = key_down(SAPP_KEYCODE_A) - key_down(SAPP_KEYCODE_D);
+	player.rz += 90;
+	vec3_t y_movement = player_direction();
+	player.rz -= 90;
+	y_movement.z = 0;
+	// factor will be the same
+	multiplier = direction * WALKING_SPEED * delta_time / factor;
+
+	y_movement.x *= multiplier;
+	y_movement.y *= multiplier;
+	player_add_vector(y_movement);
+	
+	printf("%f, %f, %f\n", player.x, player.y, player.z);
 
 	sg_begin_pass(&(sg_pass){
 		.action = state.pass_action,
@@ -211,10 +230,12 @@ static void fetch_cb(const sfetch_response_t* response){
 	}
 }
 
+struct mouse_state temp_mouse;
+
 void event(const sapp_event* ev){
 	handle_input(ev);
-	struct mouse_state mouse = get_mouse_state();
-	state.mouse = &mouse;
+	temp_mouse = get_mouse_state();
+	state.mouse = &temp_mouse;
 
 	player.rz -= state.mouse->dx*SENSITIVITY; // z is the one that does that
 	player.ry += state.mouse->dy*SENSITIVITY;
