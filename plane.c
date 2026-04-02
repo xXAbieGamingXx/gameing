@@ -73,7 +73,7 @@ static void draw_plane_helper(struct plane_desc* desc){
 	if(desc->sx == 1 && desc->sy == 1 && desc->sz == 1){
 		model = vm_mul(rotation, translation);
 	}else{
-		scaling = mat44_scaling(desc->sx, desc->sy, desc->sz);
+		scaling = mat44_scaling(desc->sx, desc->sz, desc->sy);
 		mat44_t rotate_translate = vm_mul(rotation, translation);
 		model = vm_mul(scaling, rotate_translate);
 	}

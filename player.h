@@ -11,3 +11,5 @@ extern struct Player player;
 extern void player_add_vector(vec3_t vec);
 
 extern vec3_t player_direction(); // direction vector
+
+extern void move_player();

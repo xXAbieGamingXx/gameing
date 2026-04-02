@@ -14,7 +14,7 @@ endforeach
 exe = executable(
   'gaming',
   ['main.c', 'sokol_app.h', 'sokol_gfx.h', 'sokol_glue.h', 'sokol_log.h', 'input.c', 'input.h', 'rectangle.glsl.h', 'util/stb/stb_image.h',
-    'sokol_fetch.h', 'util/fileutil.h', 'util/fileutil.c', 'util/vecmath.h', 'player.c', 'player.h', 'plane.h', 'plane.c'],
+    'sokol_fetch.h', 'util/fileutil.h', 'util/fileutil.c', 'util/vecmath.h', 'player.c', 'player.h', 'plane.h', 'plane.c', 'images.c', 'images.h'],
   install : true,
 )
 
