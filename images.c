@@ -4,28 +4,36 @@
 #include <stdio.h>
 #include "sokol_fetch.h"
 #include "sokol_gfx.h"
+#include "sokol_log.h"
 #include "util/stb/stb_image.h"
+#include "util/fileutil.h"
 
 // ids are in the h file
 
-char* filepaths[] = {
+char filepaths[][30] = {
 	"image.png",
 };
 
 uint16_t file_count;
 uint8_t file_buffer[500000];
 
+bool done_fetching = false;
+
 struct image_dimensions {
 	int width, height;
 };
 
-struct image_dimensions image_dimensions;
+struct image_dimensions* image_dimensions;
 
 sg_image* images;
 
-int i;
+int current_image;
 
 static void fetch_cb(const sfetch_response_t* response);
+
+void images_dowork(){
+	sfetch_dowork();
+}
 
 void fetch_images(){
 	sfetch_setup(&(sfetch_desc_t){
@@ -37,9 +45,9 @@ void fetch_images(){
 
 	file_count = sizeof(filepaths) / sizeof(filepaths[0]);
 	images = malloc(sizeof(sg_image) * file_count);
-	image_dimensions = malloc(sizeof(struct image_dimensions) * filecount);
+	image_dimensions = malloc(sizeof(struct image_dimensions) * file_count);
 
-	for(i = 0; i < file_count; i++){
+	for(int i = 0; i < file_count; i++){
 		char path_buf[512];
 		sfetch_send(&(sfetch_request_t){
 			.path = fileutil_get_path(filepaths[i], path_buf, sizeof(path_buf)),
@@ -57,7 +65,6 @@ void image_shutdown(){
 
 static void fetch_cb(const sfetch_response_t* response){
 	if(response->fetched){
-		printf("sucessful fetch\n");
 		int width, height, num_channels;
 		const int desired_channels = 4;
 		stbi_uc* pixels = stbi_load_from_memory(
@@ -66,10 +73,10 @@ static void fetch_cb(const sfetch_response_t* response){
 			&width, &height,
 			&num_channels, desired_channels
 		);
-		image_dimensions[i].width = width;
-		image_dimensions[i].height = height;
+		image_dimensions[current_image].width = width;
+		image_dimensions[current_image].height = height;
 		if(pixels){
-			images[i] = sg_make_image(&(sg_image_desc){
+			images[current_image] = sg_make_image(&(sg_image_desc){
 				.width = width,
 				.height = height,
 				.pixel_format = SG_PIXELFORMAT_RGBA8,
@@ -102,12 +109,12 @@ static void fetch_cb(const sfetch_response_t* response){
 		}
 		
 		if(response->failed){
-			state.pass_action = (sg_pass_action){
-				.colors[0] = {
-					.load_action = SG_LOADACTION_CLEAR,
-					.clear_value = {1.0f, .0f, .0f, 1.0f}
-				},
-			};
+			printf("BIG FAIL ALERT\n");
 		}
+	}
+	current_image++;
+	if(current_image == file_count){
+		done_fetching = true;
+		printf("done with all fetches\n");
 	}
 }

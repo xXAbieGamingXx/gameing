@@ -1,7 +1,6 @@
 #define VECMATH_GENERICS
 #include <stdio.h>
 #include <math.h>
-#include <stdbool.h>
 #include "player.h"
 #include "sokol_gfx.h"
 #include "sokol_app.h"
@@ -65,7 +64,7 @@ static void draw_plane_helper(struct plane_desc* desc){
 	mat44_t rotation;
 	mat44_t model;
 	mat44_t rx = mat44_rotation_x(vm_radians(desc->rx));
-	mat44_t ry = mat44_rotation_z(vm_radians(desc->ry));
+	mat44_t ry = mat44_rotation_z(vm_radians(desc->ry)); // y and z are swapped because z up instead of y up
 	mat44_t rz = mat44_rotation_y(vm_radians(desc->rz));
 	mat44_t rxy = vm_mul(ry, rx);
 	rotation = vm_mul(rz, rxy);

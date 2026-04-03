@@ -1,5 +1,4 @@
 #pragma once
-#include <stdbool.h>
 
 typedef struct sapp_event sapp_event;
 typedef enum sapp_keycode sapp_keycode;

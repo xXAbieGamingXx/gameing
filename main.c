@@ -6,7 +6,6 @@
 #define SOKOL_GLCORE
 #include <stdio.h>
 #include <math.h>
-#include <stdbool.h>
 #include "sokol_gfx.h"
 #include "sokol_app.h"
 #include "sokol_log.h"
@@ -14,7 +13,6 @@
 #include "input.h"
 #include "util/vecmath.h"
 #include "rectangle.glsl.h"
-#include "util/fileutil.h"
 #include "plane.h"
 #include "images.h"
 #include "player.h"
@@ -24,7 +22,9 @@ static struct{
 	sg_bindings bind;
 	sg_pass_action pass_action;
 	struct mouse_state* mouse;
+	bool loaded_images;
 } state;
+
 
 struct Vertex {
 	float x, y, z;
@@ -35,11 +35,11 @@ struct Vertex {
 
 double delta_time = 0;
 
-static void fetch_cb(const sfetch_response_t* response);
-
 void cleanup();
 
 void init(){
+	state.loaded_images = false;
+	
 	sg_setup(&(sg_desc){
 		.environment = sglue_environment(),
 		.logger.func = slog_func,
@@ -98,11 +98,12 @@ void init(){
 			},
 		},
 		.index_type = SG_INDEXTYPE_UINT16,
+		.depth = {
+			.compare = SG_COMPAREFUNC_LESS_EQUAL,
+			.write_enabled = true,
+		},
 	});
 
-	sg_init_view(state.bind.views[VIEW_tex], &(sg_view_desc){
-		.texture = {.image = images[NERD_EMOJI_ID]},
-	});
 }
 
 void frame(){
@@ -110,7 +111,14 @@ void frame(){
 		cleanup();
 	}
 
-	sfetch_dowork();
+	images_dowork();
+
+	if(!state.loaded_images && done_fetching){
+		sg_init_view(state.bind.views[VIEW_tex], &(sg_view_desc){
+			.texture = {.image = images[NERD_EMOJI_ID]},
+		});
+		state.loaded_images = true;
+	}
 
 	delta_time = sapp_frame_duration();
 
