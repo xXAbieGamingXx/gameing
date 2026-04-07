@@ -35,8 +35,8 @@ void plane_init(){
 }
 
 void draw_plane(struct plane_desc* desc){ // will draw a plane oriented on the x axis with up as up
-	desc->rx += 90;
-	desc->rz += 90;
+	// desc->rx += 90; // done in main currently
+	// desc->rz += 90;
 	if(desc->sx == 0){
 		desc->sx = 1;
 	}

@@ -16,6 +16,7 @@
 #include "plane.h"
 #include "images.h"
 #include "player.h"
+#include "plane_list.h"
 
 static struct{
 	sg_pipeline pip;
@@ -34,6 +35,7 @@ struct Vertex {
 #define SENSITIVITY .25
 
 double delta_time = 0;
+struct plane_desc* planes;
 
 void cleanup();
 
@@ -104,6 +106,15 @@ void init(){
 		},
 	});
 
+	planes = malloc(sizeof(struct plane_desc)*plane_list_size);
+	memcpy(planes, plane_list, sizeof(struct plane_desc)*plane_list_size);
+
+	for(int i = 0; i < plane_list_size; i++){
+		planes[i].pip = state.pip;
+		planes[i].bind = state.bind;
+		planes[i].rx += 90;
+		planes[i].rz += 90;
+	}
 }
 
 void frame(){
@@ -131,17 +142,9 @@ void frame(){
 
 	// i think the longer side is one then scales from aspect ratio?
 
-	draw_plane(&(struct plane_desc){
-		.x = 5,
-		.pip = state.pip,
-		.bind = state.bind,
-	});
-
-	draw_plane(&(struct plane_desc){
-		.rz = 90,
-		.pip = state.pip,
-		.bind = state.bind,
-	});
+	for(int i = 0; i < plane_list_size; i++){
+		draw_plane(&planes[i]);
+	}
 
 	sg_end_pass();
 	sg_commit();
