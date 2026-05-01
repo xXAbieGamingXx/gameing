@@ -13,10 +13,10 @@
 #include "input.h"
 #include "util/vecmath.h"
 #include "rectangle.glsl.h"
-#include "plane.h"
 #include "images.h"
 #include "player.h"
-#include "plane_list.h"
+#include "parse_map.h"
+#include "render.h"
 
 static struct{
 	sg_pipeline pip;
@@ -26,16 +26,10 @@ static struct{
 	bool loaded_images;
 } state;
 
-
-struct Vertex {
-	float x, y, z;
-	short u, v;
-};
-
 #define SENSITIVITY .25
 
 double delta_time = 0;
-struct plane_desc* planes;
+uint32_t vertex_num;
 
 void cleanup();
 
@@ -47,7 +41,7 @@ void init(){
 		.logger.func = slog_func,
 	});
 
-	plane_init();
+	render_init();
 
 	sapp_lock_mouse(true);
 
@@ -67,27 +61,28 @@ void init(){
 		.mag_filter = SG_FILTER_LINEAR,
 		.label = "texture-test",
 	});
-
-	const struct Vertex vertices[] = { // x, y, z, u (horizontal), v (vertical)
-		{1.0f , 1.0f , .1f, 32767, 0    },
-		{-1.0f, 1.0f , .1f, 0    , 0    },
-		{1.0f , -1.0f, .1f, 32767, 32767},
-		{-1.0f, -1.0f, .1f, 0    , 32767},
-	};
+	
+	char* file = "maps/unnamed-compile.lvl";
+	struct triangle_data* triangles = get_triangles(file);
 
 	state.bind.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc){
-		.data = SG_RANGE(vertices),
+		.data = (sg_range){ .ptr = triangles->triangles, .size = triangles->entries * sizeof(struct triangle_desc) },
 		.label = "rectangle_vertices",
 	});
 
-	const uint16_t indices[] = {
-		0, 1, 2,    1, 2, 3,
-	};
+	vertex_num = 3*triangles->entries;
 
-	state.bind.index_buffer = sg_make_buffer(&(sg_buffer_desc){
-		.usage.index_buffer = true,
-		.data = SG_RANGE(indices),
-	});
+	free(triangles->triangles);
+	free(triangles);
+
+	// const uint16_t indices[] = {
+	// 	0, 1, 2,    1, 2, 3,
+	// };
+	//
+	// state.bind.index_buffer = sg_make_buffer(&(sg_buffer_desc){
+	// 	.usage.index_buffer = true,
+	// 	.data = SG_RANGE(indices),
+	// });
 
 	sg_shader rect_shd = sg_make_shader(rectangle_shader_desc(sg_query_backend()));
 
@@ -99,22 +94,13 @@ void init(){
 				[ATTR_rectangle_texcoord0].format = SG_VERTEXFORMAT_SHORT2N,
 			},
 		},
-		.index_type = SG_INDEXTYPE_UINT16,
+		// .index_type = SG_INDEXTYPE_UINT16,
 		.depth = {
 			.compare = SG_COMPAREFUNC_LESS_EQUAL,
 			.write_enabled = true,
 		},
 	});
 
-	planes = malloc(sizeof(struct plane_desc)*plane_list_size);
-	memcpy(planes, plane_list, sizeof(struct plane_desc)*plane_list_size);
-
-	for(int i = 0; i < plane_list_size; i++){
-		planes[i].pip = state.pip;
-		planes[i].bind = state.bind;
-		planes[i].rx += 90;
-		planes[i].rz += 90;
-	}
 }
 
 void frame(){
@@ -142,9 +128,7 @@ void frame(){
 
 	// i think the longer side is one then scales from aspect ratio?
 
-	for(int i = 0; i < plane_list_size; i++){
-		draw_plane(&planes[i]);
-	}
+	draw_vertices(state.pip, state.bind, vertex_num);
 
 	sg_end_pass();
 	sg_commit();

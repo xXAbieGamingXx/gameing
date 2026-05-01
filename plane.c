@@ -78,8 +78,6 @@ static void draw_plane_helper(struct plane_desc* desc){
 	}
 	mat44_t mvp = vm_mul(model, view_proj);
 
-	// int d = 1/0;
-
 	const mvp_params_t mvp_params = (mvp_params_t){.mvp = mvp};
 
 	sg_apply_pipeline(desc->pip); // might ned to pass in a pointer

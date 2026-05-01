@@ -11,7 +11,7 @@
 // ids are in the h file
 
 char filepaths[][30] = {
-	"image.png",
+	"textures/image.png",
 };
 
 uint16_t file_count;

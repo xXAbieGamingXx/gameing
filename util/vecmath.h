@@ -1,3 +1,4 @@
+#pragma GCC system_header
 /*
 ------------------------------------------------------------------------------
 		 Licensing information can be found at the end of the file.

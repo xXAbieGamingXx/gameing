@@ -8,15 +8,32 @@ project(
 
 shaders = ['rectangle.glsl']
 foreach shader : shaders
-  run_command('bash', ['./shdc.sh', shader], check: true)
+run_command('bash', ['./shdc.sh', shader], check: true)
 endforeach
+
+files = ['sokol_app.h', 'sokol_gfx.h', 'sokol_glue.h', 'sokol_log.h', 'input.c', 'input.h', 'rectangle.glsl.h', 'util/stb/stb_image.h',
+   'sokol_fetch.h', 'util/fileutil.h', 'util/fileutil.c', 'util/vecmath.h', 'player.c', 'player.h', 'render.h', 'render.c', 'images.c', 'images.h',
+   'parse_map.c', 'parse_map.h', 'main.c']
 
 exe = executable(
   'gaming',
-  ['main.c', 'sokol_app.h', 'sokol_gfx.h', 'sokol_glue.h', 'sokol_log.h', 'input.c', 'input.h', 'rectangle.glsl.h', 'util/stb/stb_image.h',
-   'sokol_fetch.h', 'util/fileutil.h', 'util/fileutil.c', 'util/vecmath.h', 'player.c', 'player.h', 'plane.h', 'plane.c', 'images.c', 'images.h',
-   'plane_list.h'],
+  files,
   install : true,
 )
 
-test('basic', exe)
+test_files = ['util/vecmath.h', 'player.c', 'player.h', 'test/test.c', 'test/munit.c', 'test/munit.h']
+
+test = executable(
+  'unittest',
+  test_files,
+  c_args : ['-DTEST']
+)
+
+map_tool_files = ['tools/trenchbroom_map.c']
+
+map_tool_files = executable(
+  'map_tool',
+  map_tool_files
+)
+
+test('test cases', test)
