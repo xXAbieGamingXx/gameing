@@ -5,9 +5,10 @@ typedef enum sapp_keycode sapp_keycode;
 
 struct mouse_state{
 	bool lmb, rmb, mmb;
-	float x, y, dx, dy, scroll;
+	float dx, dy, scroll;
 };
 
+void reset_mouse(struct mouse_state* mouse);
 
 void handle_input(const sapp_event* ev, struct mouse_state* mouse);
 

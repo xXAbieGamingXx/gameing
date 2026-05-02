@@ -38,6 +38,8 @@ void cleanup();
 
 void init(){
 	state.loaded_images = false;
+	player.rz = 35.0f;
+	player.ry = -12.0f;
 	
 	sg_setup(&(sg_desc){
 		.environment = sglue_environment(),
@@ -48,7 +50,7 @@ void init(){
 
 	render_init();
 
-	// sapp_lock_mouse(true);
+	sapp_lock_mouse(true);
 
 	fetch_images();
 
@@ -109,6 +111,7 @@ void init(){
 }
 
 void frame(){
+	reset_mouse(&state.mouse);
 	if(key_down(SAPP_KEYCODE_ESCAPE)){
 		cleanup();
 	}
@@ -133,7 +136,7 @@ void frame(){
 
 	draw_vertices(state.pip, state.bind, vertex_num);
 
-	printf("%f, %f\n", player.rz, player.ry);
+	// printf("%f, %f\n", player.rz, player.ry);
 
 	sg_end_pass();
 	sg_commit();
@@ -150,10 +153,10 @@ void event(const sapp_event* ev){
 
 	player.rz -= state.mouse.dx*SENSITIVITY; // z is the one that does that
 	player.ry += state.mouse.dy*SENSITIVITY;
-	if(player.ry > 90){
-		player.ry = 90;
-	}else if(player.ry < -90){
-		player.ry = -90;
+	if(player.ry > 90.0f){
+		player.ry = 89.9f; // stops camera flipping
+	}else if(player.ry < -90.0f){
+		player.ry = -89.9f;
 	}
 }
 

@@ -57,7 +57,7 @@ void move_player(double delta_time){
 }
 #endif
 
-struct collision_test check_triangle_collision(vec3_t ray_origin, vec3_t ray, mat33_t triangle){ // 30000 tris took "0" seconds
+struct collision_test check_triangle_collision(vec3_t ray_origin, vec3_t ray, mat33_t triangle){
 	const float epsilon = FLT_EPSILON;
 	vec3_t edge1 = vec3_sub(triangle.y, triangle.x);
 	vec3_t edge2 = vec3_sub(triangle.z, triangle.x);
