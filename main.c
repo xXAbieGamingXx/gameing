@@ -2,14 +2,17 @@
 #define SOKOL_APP_IMPL
 #define SOKOL_LOG_IMPL
 #define SOKOL_GLUE_IMPL
+#define SOKOL_TIME_IMPL
 #define VECMATH_GENERICS
 #define SOKOL_GLCORE
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 #include "sokol_gfx.h"
 #include "sokol_app.h"
 #include "sokol_log.h"
 #include "sokol_glue.h"
+#include "sokol_time.h"
 #include "input.h"
 #include "util/vecmath.h"
 #include "rectangle.glsl.h"
@@ -22,7 +25,7 @@ static struct{
 	sg_pipeline pip;
 	sg_bindings bind;
 	sg_pass_action pass_action;
-	struct mouse_state* mouse;
+	struct mouse_state mouse;
 	bool loaded_images;
 } state;
 
@@ -41,9 +44,11 @@ void init(){
 		.logger.func = slog_func,
 	});
 
+	stm_setup();
+
 	render_init();
 
-	sapp_lock_mouse(true);
+	// sapp_lock_mouse(true);
 
 	fetch_images();
 
@@ -126,9 +131,9 @@ void frame(){
 		.swapchain = sglue_swapchain(),
 	});
 
-	// i think the longer side is one then scales from aspect ratio?
-
 	draw_vertices(state.pip, state.bind, vertex_num);
+
+	printf("%f, %f\n", player.rz, player.ry);
 
 	sg_end_pass();
 	sg_commit();
@@ -140,15 +145,16 @@ void cleanup(){
 }
 
 
-struct mouse_state temp_mouse;
-
 void event(const sapp_event* ev){
-	handle_input(ev);
-	temp_mouse = get_mouse_state();
-	state.mouse = &temp_mouse;
+	handle_input(ev, &state.mouse);
 
-	player.rz -= state.mouse->dx*SENSITIVITY; // z is the one that does that
-	player.ry += state.mouse->dy*SENSITIVITY;
+	player.rz -= state.mouse.dx*SENSITIVITY; // z is the one that does that
+	player.ry += state.mouse.dy*SENSITIVITY;
+	if(player.ry > 90){
+		player.ry = 90;
+	}else if(player.ry < -90){
+		player.ry = -90;
+	}
 }
 
 sapp_desc sokol_main(int argc, char* argv[]){

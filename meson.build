@@ -11,9 +11,9 @@ foreach shader : shaders
 run_command('bash', ['./shdc.sh', shader], check: true)
 endforeach
 
-files = ['sokol_app.h', 'sokol_gfx.h', 'sokol_glue.h', 'sokol_log.h', 'input.c', 'input.h', 'rectangle.glsl.h', 'util/stb/stb_image.h',
+files = ['sokol_app.h', 'sokol_gfx.h', 'sokol_glue.h', 'sokol_log.h', 'input.c', 'input.h', 'rectangle.glsl.h', 'util/stb/stb_image.h', 
    'sokol_fetch.h', 'util/fileutil.h', 'util/fileutil.c', 'util/vecmath.h', 'player.c', 'player.h', 'render.h', 'render.c', 'images.c', 'images.h',
-   'parse_map.c', 'parse_map.h', 'main.c']
+   'parse_map.c', 'parse_map.h', 'main.c', 'util/tinycthread.c', 'util/tinycthread.h']
 
 exe = executable(
   'gaming',

@@ -115,6 +115,5 @@ static void fetch_cb(const sfetch_response_t* response){
 	current_image++;
 	if(current_image == file_count){
 		done_fetching = true;
-		printf("done with all fetches\n");
 	}
 }

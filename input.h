@@ -9,7 +9,7 @@ struct mouse_state{
 };
 
 
-void handle_input(const sapp_event* ev);
+void handle_input(const sapp_event* ev, struct mouse_state* mouse);
 
 bool key_down(sapp_keycode code);
 

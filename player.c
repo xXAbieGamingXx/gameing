@@ -25,8 +25,7 @@ void player_add_vector(vec3_t vec){
 }
 
 vec3_t player_direction(){
-	float cos_rz = cos(vm_radians(player.rz));  // horizontal rotation
-	return vec3(cos_rz * cos(vm_radians(player.ry)),  // ry is pitch, affects Z only
+	return vec3(cos(vm_radians(player.rz)) * cos(vm_radians(player.ry)),
 		sin(vm_radians(player.rz)) * cos(vm_radians(player.ry)),
 		-sin(vm_radians(player.ry)));
 }
@@ -48,10 +47,7 @@ void move_player(double delta_time){
 	player_add_vector(x_movement);
 
 	direction = key_down(SAPP_KEYCODE_A) - key_down(SAPP_KEYCODE_D);
-	player.rz += 90;
-	vec3_t y_movement = player_direction();
-	player.rz -= 90;
-	y_movement.z = 0;
+	vec3_t y_movement = vec3(-x_movement.y, x_movement.x, 0.0f);
 	// factor will be the same
 	multiplier = direction * WALKING_SPEED * delta_time / factor;
 
