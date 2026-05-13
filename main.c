@@ -29,7 +29,7 @@ static struct{
 	bool loaded_images;
 } state;
 
-#define SENSITIVITY .25
+#define SENSITIVITY .25f
 
 double delta_time = 0;
 uint32_t vertex_num;
@@ -71,7 +71,9 @@ void init(){
 	
 	char* file = "maps/unnamed-compile.lvl";
 	struct triangle_data* triangles = get_triangles(file);
-
+	for(uint32_t i = 0; i < triangles->entries; i++){
+		printf("(%f, %f, %f), (%hu, %hu), (%f, %f, %f), (%hu, %hu), (%f, %f, %f), (%hu, %hu)\n", triangles->triangles[i].vertices[0].x, triangles->triangles[i].vertices[0].y, triangles->triangles[i].vertices[0].z, triangles->triangles[i].vertices[0].u, triangles->triangles[i].vertices[0].v, triangles->triangles[i].vertices[1].x, triangles->triangles[i].vertices[1].y, triangles->triangles[i].vertices[1].z, triangles->triangles[i].vertices[1].u, triangles->triangles[i].vertices[1].v, triangles->triangles[i].vertices[2].x, triangles->triangles[i].vertices[2].y, triangles->triangles[i].vertices[2].z, triangles->triangles[i].vertices[2].u, triangles->triangles[i].vertices[2].v);
+	}
 	state.bind.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc){
 		.data = (sg_range){ .ptr = triangles->triangles, .size = triangles->entries * sizeof(struct triangle_desc) },
 		.label = "rectangle_vertices",
@@ -98,7 +100,7 @@ void init(){
 		.layout = {
 			.attrs = {
 				[ATTR_rectangle_pos].format = SG_VERTEXFORMAT_FLOAT3,
-				[ATTR_rectangle_texcoord0].format = SG_VERTEXFORMAT_SHORT2N,
+				[ATTR_rectangle_texcoord0].format = SG_VERTEXFORMAT_USHORT2N,
 			},
 		},
 		// .index_type = SG_INDEXTYPE_UINT16,
@@ -135,8 +137,6 @@ void frame(){
 	});
 
 	draw_vertices(state.pip, state.bind, vertex_num);
-
-	// printf("%f, %f\n", player.rz, player.ry);
 
 	sg_end_pass();
 	sg_commit();

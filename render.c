@@ -16,7 +16,7 @@ static float h;
 void render_init(){
 	w = sapp_widthf();
 	h = sapp_heightf();
-	proj = mat44_perspective_fov_rh(vm_radians((float)FOV), w/h, .01f, 100.0f);
+	proj = mat44_perspective_fov_rh(vm_radians((float)FOV), w/h, .01f, 10000.0f);
 }
 
 void draw_vertices(sg_pipeline pip, sg_bindings bind, uint32_t vertex_num){

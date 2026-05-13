@@ -7,7 +7,7 @@
 
 struct vertex {
 	float x, y, z;
-	int16_t u, v;
+	uint16_t u, v;
 };
 
 struct triangle_desc {
@@ -26,11 +26,11 @@ uint16_t texids[10000] = {0};
 
 struct triangle_data* get_triangles(char* file){
 	FILE *flvl;
-	flvl = fopen(file, "r");
+	flvl = fopen(file, "rb");
 	fseek(flvl, 0L, SEEK_END);
 	uint32_t length = ftell(flvl);
 	rewind(flvl);
-	char buffer[length];
+	char* buffer = malloc(length);
 	fgets(buffer, length, flvl);
 	fclose(flvl);
 	uint32_t entries = length / READ_TRIANGLE_LENGTH;
@@ -40,6 +40,7 @@ struct triangle_data* get_triangles(char* file){
 		memcpy(&triangles[i], &buffer[index], sizeof(struct triangle_desc));
 		index += READ_TRIANGLE_LENGTH; // skip over texid for now
 	}
+	free(buffer);
 	struct triangle_data* triangle_data = malloc(sizeof(struct triangle_data));
 	triangle_data->triangles = triangles;
 	triangle_data->entries = entries;

@@ -6,20 +6,12 @@ end with a single 0x0
 triangle information:
 (all xyz float, all uv int16_t) (x, y, z), (u, v), (x, y, z), (u, v) (x, y, z), (u, v), (uint16_t) texid, (uint32_t) lightmap_offset
 
->[!TODO]
-> precalculate the uvs that are required for each vertex
+have uvs be based on position to create contiguous textures
+ignore any existing uvs unless it is (1, 1), then DONT make the textures contiguous and make the vertices (0, 0), (1, 0), (0, 1)
+
 
 >[!TODO]
-> replace redundant vertices by adding an index buffer (requires changing all mat33_t to three floats)
-
-stored as this:
-```c
-struct triangle{
-        mat33_t triangle;
-        uint16_t texid;
-};
-``` 
-can just be memcpyed straight into a struct
+> replace redundant vertices by adding an index buffer
 
 > [!NOTE] Note
 > stored in little endian when reading but still should work when reading
