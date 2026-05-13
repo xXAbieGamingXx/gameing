@@ -1,5 +1,6 @@
 #define VECMATH_GENERICS
 #include <float.h>
+#include <math.h>
 #include "util/vecmath.h"
 #include "input.h"
 #include "sokol_app.h"
@@ -9,7 +10,7 @@ struct Player {
 	float ry, rz;
 };
 
-#define WALKING_SPEED 10
+#define WALKING_SPEED 70
 
 struct Player player = {0};
 
@@ -34,23 +35,17 @@ vec3_t player_direction(){
 void move_player(double delta_time){
 	float direction = key_down(SAPP_KEYCODE_W) - key_down(SAPP_KEYCODE_S);
 
-	vec3_t x_movement = player_direction();
-	x_movement.z = 0;
-	float factor = x_movement.x * x_movement.x + x_movement.y * x_movement.y;
-	float multiplier = 0.0f;
-	multiplier = direction * WALKING_SPEED * delta_time / factor;
+	vec3_t x_movement = vec3(cos(vm_radians(player.rz)), sin(vm_radians(player.rz)), 0);
+	float multiplier = direction * WALKING_SPEED * delta_time;
 
 	x_movement.x *= multiplier;
 	x_movement.y *= multiplier;
 	player_add_vector(x_movement);
 
 	direction = key_down(SAPP_KEYCODE_A) - key_down(SAPP_KEYCODE_D);
-	player.rz += 90;
-	vec3_t y_movement = player_direction();
-	player.rz -= 90;
-	y_movement.z = 0;
-	// factor will be the same
-	multiplier = direction * WALKING_SPEED * delta_time / factor;
+
+	vec3_t y_movement = vec3(cos(vm_radians(player.rz+90)), sin(vm_radians(player.rz+90)), 0);
+	multiplier = direction * WALKING_SPEED * delta_time;
 
 	y_movement.x *= multiplier;
 	y_movement.y *= multiplier;

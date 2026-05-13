@@ -1,4 +1,5 @@
 .vscode/
 builddir/
+.claude/
 image.png
 old_image.png

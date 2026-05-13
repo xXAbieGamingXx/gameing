@@ -4,7 +4,7 @@ header:
 end with a single 0x0
 
 triangle information:
-(all xyz float, all uv int16_t) (x, y, z), (u, v), (x, y, z), (u, v) (x, y, z), (u, v), (uint16_t) texid, (uint32_t) lightmap_offset
+(all xyz float, all uv uint16_t) (x, y, z), (u, v), (x, y, z), (u, v) (x, y, z), (u, v), (uint16_t) texid, (uint32_t) lightmap_offset
 
 have uvs be based on position to create contiguous textures
 ignore any existing uvs unless it is (1, 1), then DONT make the textures contiguous and make the vertices (0, 0), (1, 0), (0, 1)

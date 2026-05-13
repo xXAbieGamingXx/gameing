@@ -8,23 +8,18 @@ NEVER commit without permission
 
 ## Build
 
+Build and run the game:
 ```sh
-meson setup builddir   # first time only
-meson compile -C builddir
+./build.sh
 ```
 
 Meson auto-runs `shdc.sh` to compile `rectangle.glsl` → `rectangle.glsl.h` before building. If the shader changes, a full recompile will pick it up automatically.
 
-Run the game:
-```sh
-./builddir/gaming
-```
-
 ## Tests
 
+Run tests:
 ```sh
-meson test -C builddir        # run all tests
-./builddir/unittest           # run directly for verbose munit output
+./test.sh
 ```
 
 Tests live in `test/test.c` and use the munit framework (`test/munit.c`). `player.c` guards non-test code with `#ifndef TEST` — the test binary is compiled with `-DTEST`.
@@ -54,8 +49,7 @@ TrenchBroom (level editor) → `.map` text file → `map_tool` → binary `.lvl`
 | `render.c` | `render_init` (projection matrix) and `draw_vertices` (builds view-projection, submits draw call). |
 | `parse_map.c` | `get_triangles` reads a `.lvl` file into a heap-allocated `triangle_data` (caller must free). |
 | `images.c` | Async texture loading via sokol_fetch + stb_image. `fetch_images` kicks off loads; `images_dowork` must be called every frame until `done_fetching` is true. |
-| `plane.c` | Older per-plane transform/draw helper (currently unused by main). |
-| `tools/trenchbroom_map.c` | Standalone `.map` → `.lvl` converter with world-space UV projection. |
+| `tools/trenchbroom_map.c` | Standalone `.map` → `.lvl` converter. |
 
 ### Coordinate system
 
@@ -63,7 +57,7 @@ Z-up. The camera uses `vec3(0, 0, 1)` as up. In `plane.c` the Y/Z rotation axes 
 
 ### `.lvl` binary format
 
-Each entry is 50 bytes: three vertices, each `(float x, float y, float z, int16_t u, int16_t v)` = 17 bytes × 3 = 51... plus `uint16_t texid` to reach 50 bytes total (see `file_format.md` for the authoritative spec, including the planned header and lightmap format).
+Each entry is 50 bytes: three vertices, each `(float x, float y, float z, uint16_t u, uint16_t v)` = 16 bytes × 3 = 48 plus `uint16_t texid` to reach 50 bytes total (see `file_format.md` for the authoritative spec, including the planned header and lightmap format).
 
 UV coordinates are world-space projected: derived from the triangle's normal, scaled ×10000 to fit in `int16_t`. If the source face has UV `(1,1)` it signals a special non-projected mode (see `file_format.md`).
 
