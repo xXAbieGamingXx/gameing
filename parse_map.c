@@ -2,48 +2,31 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <string.h>
-#include "util/vecmath.h"
-
-struct vertex {
-	float x, y, z;
-	uint16_t u, v;
-};
-
-struct triangle_desc {
-	struct vertex vertices[3];
-};
-
-struct triangle_data {
-	struct triangle_desc* triangles;
-	uint32_t entries;
-	uint16_t* texids;
-};
-
-#define READ_TRIANGLE_LENGTH 50 
-
-uint16_t texids[10000] = {0};
+#include "parse_map.h"
 
 struct triangle_data* get_triangles(char* file){
-	FILE *flvl;
-	flvl = fopen(file, "rb");
-	fseek(flvl, 0L, SEEK_END);
-	uint32_t length = ftell(flvl);
-	rewind(flvl);
-	char* buffer = malloc(length);
-	fgets(buffer, length, flvl);
+	FILE* flvl = fopen(file, "rb");
+
+	uint32_t vertex_count, tri_count;
+	fread(&vertex_count, sizeof(uint32_t), 1, flvl);
+	fread(&tri_count, sizeof(uint32_t), 1, flvl);
+
+	uint16_t* texids = malloc(tri_count * sizeof(uint16_t));
+	fread(texids, sizeof(uint16_t), tri_count, flvl);
+
+	uint32_t* indices = malloc(tri_count * 3 * sizeof(uint32_t));
+	fread(indices, sizeof(uint32_t), tri_count * 3, flvl);
+
+	struct vertex* vertices = malloc(vertex_count * sizeof(struct vertex));
+	fread(vertices, sizeof(struct vertex), vertex_count, flvl);
+
 	fclose(flvl);
-	uint32_t entries = length / READ_TRIANGLE_LENGTH;
-	struct triangle_desc* triangles = malloc(entries * sizeof(struct triangle_desc));
-	uint32_t index = 0;
-	for(uint32_t i = 0; i < entries; i++){
-		memcpy(&triangles[i], &buffer[index], sizeof(struct triangle_desc));
-		index += READ_TRIANGLE_LENGTH; // skip over texid for now
-	}
-	free(buffer);
-	struct triangle_data* triangle_data = malloc(sizeof(struct triangle_data));
-	triangle_data->triangles = triangles;
-	triangle_data->entries = entries;
-	triangle_data->texids = texids;
-	return triangle_data;
+
+	struct triangle_data* td = malloc(sizeof(struct triangle_data));
+	td->vertices = vertices;
+	td->vertex_count = vertex_count;
+	td->indices = indices;
+	td->texids = texids;
+	td->tri_count = tri_count;
+	return td;
 }

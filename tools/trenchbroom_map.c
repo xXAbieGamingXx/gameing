@@ -13,6 +13,7 @@
 #define INTERSECT_EPS 1e-6f
 #define INSIDE_EPS 1e-3f
 #define DEDUP_EPS 1e-3f
+#define UV_FLOAT_EPS 1e-4f
 
 typedef struct {
 	vec3_t n;
@@ -20,6 +21,22 @@ typedef struct {
 	bool src_uv_is_11;
 	uint16_t texid;
 } face_plane_t;
+
+typedef struct { float x, y, z; float u, v; } raw_vert_t;
+typedef struct { raw_vert_t v[3]; uint16_t texid; } raw_tri_t;
+
+static raw_tri_t* raw_tris = NULL;
+static uint32_t n_raw_tris = 0;
+static uint32_t cap_raw_tris = 0;
+
+static void push_tri(raw_vert_t a, raw_vert_t b, raw_vert_t c, uint16_t id){
+	if(n_raw_tris == cap_raw_tris){
+		cap_raw_tris = cap_raw_tris ? cap_raw_tris * 2 : 4096;
+		raw_tris = realloc(raw_tris, cap_raw_tris * sizeof(raw_tri_t));
+	}
+	raw_tris[n_raw_tris] = (raw_tri_t){{a, b, c}, id};
+	n_raw_tris++;
+}
 
 static int plane_intersect(face_plane_t a, face_plane_t b, face_plane_t c, vec3_t* out){
 	vec3_t bxc = vec3_cross(b.n, c.n);
@@ -50,162 +67,64 @@ static void compute_face_basis(vec3_t n, vec3_t* u_basis_out, vec3_t* v_basis_ou
 		u_basis = vec3_mulf(u_basis, -1.0f);
 		v_basis = vec3_mulf(v_basis, -1.0f);
 	}
+	// For vertical faces, ensure v points in -Z so V increases downward on the
+	// wall and the texture appears right-side up (V=0 at top, V=1 at bottom).
+	// Without this, cross product results give opposite v.z signs for opposite
+	// wall normals, making half the walls appear upside down.
+	if(fabsf(n.z) < 0.9f && v_basis.z > 0.0f){
+		v_basis = vec3_mulf(v_basis, -1.0f);
+	}
 	*u_basis_out = u_basis;
 	*v_basis_out = v_basis;
 }
 
-static vec3_t lerp_v3(vec3_t p, vec3_t q, float t){
-	return vec3(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t, p.z + (q.z - p.z) * t);
+// src_uv_is_11 faces: stretch the texture across each triangle with UVs clamped
+// to [0, 1]. The GPU sampler (wrap=repeat) will simply show one copy of the texture.
+static void write_triangle_11(vec3_t a, vec3_t b, vec3_t c, uint16_t id){
+	push_tri(
+		(raw_vert_t){a.x, a.y, a.z, 0.0f, 0.0f},
+		(raw_vert_t){b.x, b.y, b.z, 1.0f, 0.0f},
+		(raw_vert_t){c.x, c.y, c.z, 0.0f, 1.0f},
+		id
+	);
 }
 
-#define POLY_MAX_VERTS 64
-
-typedef struct {
-	vec3_t v[POLY_MAX_VERTS];
-	int n;
-} poly_t;
-
-// Sutherland-Hodgman split of poly against plane dot(p, axis) = value.
-// Vertices with dot < value go to *neg; dot > value go to *pos. Edge crossings
-// are added to both sides so neighboring pieces share boundary vertices.
-static void split_poly_plane(const poly_t* in, vec3_t axis, float value, poly_t* neg, poly_t* pos){
-	const float eps = 1e-4f;
-	neg->n = 0;
-	pos->n = 0;
-	if(in->n < 3) return;
-	for(int i = 0; i < in->n; i++){
-		vec3_t a = in->v[i];
-		vec3_t b = in->v[(i + 1) % in->n];
-		float da = vec3_dot(a, axis) - value;
-		float db = vec3_dot(b, axis) - value;
-		if(da <= eps && neg->n < POLY_MAX_VERTS) neg->v[neg->n++] = a;
-		if(da >= -eps && pos->n < POLY_MAX_VERTS) pos->v[pos->n++] = a;
-		bool crosses = (da > eps && db < -eps) || (da < -eps && db > eps);
-		if(crosses){
-			float t = da / (da - db);
-			vec3_t q = lerp_v3(a, b, t);
-			if(neg->n < POLY_MAX_VERTS) neg->v[neg->n++] = q;
-			if(pos->n < POLY_MAX_VERTS) pos->v[pos->n++] = q;
-		}
-	}
-}
-
-// Writes a triangle whose three vertices all lie in the same uint16 wrap tile
-// (tile_u, tile_v). Subtracts the tile origin so each emitted UV lands in
-// [0, 65535]; vertices on the upper boundary clamp to 65535 instead of wrapping
-// to 0, which keeps GPU interpolation moving the correct way across the seam.
-static void write_triangle_tile(FILE* flvl, vec3_t a, vec3_t b, vec3_t c,
-                                vec3_t u_basis, vec3_t v_basis,
-                                int tile_u, int tile_v, uint16_t id){
+// Projects each vertex onto the face UV basis. UV 1.0 = one texture repeat
+// (UV_TILE_SCALE / 65536 world units per repeat). The GPU sampler handles
+// wrapping, so a face covering 8 repeats gets UVs in the range [N, N+8].
+static void write_triangle_projected(vec3_t a, vec3_t b, vec3_t c,
+                                     vec3_t u_basis, vec3_t v_basis, uint16_t id){
+	const float tile_world = 65536.0f / UV_TILE_SCALE;
 	vec3_t verts[3] = { a, b, c };
-	uint16_t u[3], v[3];
-	const float TILE_PERIOD = 65536.0f;
-	float u_off = (float)tile_u * TILE_PERIOD;
-	float v_off = (float)tile_v * TILE_PERIOD;
+	float us[3], vs[3];
 	for(int i = 0; i < 3; i++){
-		float fu = vec3_dot(verts[i], u_basis) * UV_TILE_SCALE - u_off;
-		float fv = vec3_dot(verts[i], v_basis) * UV_TILE_SCALE - v_off;
-		if(fu < 0.0f) fu = 0.0f;
-		if(fu > 65535.0f) fu = 65535.0f;
-		if(fv < 0.0f) fv = 0.0f;
-		if(fv > 65535.0f) fv = 65535.0f;
-		u[i] = (uint16_t)fu;
-		v[i] = (uint16_t)fv;
+		us[i] = vec3_dot(verts[i], u_basis) / tile_world;
+		vs[i] = vec3_dot(verts[i], v_basis) / tile_world;
 	}
-	float pa[3] = { a.x, a.y, a.z };
-	float pb[3] = { b.x, b.y, b.z };
-	float pc[3] = { c.x, c.y, c.z };
-	fwrite(pa, sizeof(float), 3, flvl);
-	fwrite(&u[0], sizeof(uint16_t), 1, flvl);
-	fwrite(&v[0], sizeof(uint16_t), 1, flvl);
-	fwrite(pb, sizeof(float), 3, flvl);
-	fwrite(&u[1], sizeof(uint16_t), 1, flvl);
-	fwrite(&v[1], sizeof(uint16_t), 1, flvl);
-	fwrite(pc, sizeof(float), 3, flvl);
-	fwrite(&u[2], sizeof(uint16_t), 1, flvl);
-	fwrite(&v[2], sizeof(uint16_t), 1, flvl);
-	fwrite(&id, sizeof(uint16_t), 1, flvl);
+	push_tri(
+		(raw_vert_t){a.x, a.y, a.z, us[0], vs[0]},
+		(raw_vert_t){b.x, b.y, b.z, us[1], vs[1]},
+		(raw_vert_t){c.x, c.y, c.z, us[2], vs[2]},
+		id
+	);
 }
 
-// Recursively splits a polygon along uint16 UV wrap boundaries so each piece
-// fits in one (tile_u, tile_v) cell, then triangulates the leaves. Without
-// this, a triangle spanning a wrap (e.g. fu=64000 -> 70000) stores as 64000
-// -> 4464 and the GPU interpolates backwards across the entire texture
-// instead of crossing the repeat seam.
-//
-// u_lo/u_hi use an eps-shifted floor so vertices that land on a boundary are
-// snapped to the side they came from; otherwise rounding noise on a vertex
-// sitting exactly on the split plane would disagree with the splitter, which
-// (correctly) reports no crossing, and we would recurse forever.
-static void emit_poly_projected(FILE* flvl, const poly_t* poly,
-                                vec3_t u_basis, vec3_t v_basis, uint16_t id){
-	if(poly->n < 3) return;
-	const float TILE_WORLD = 65536.0f / UV_TILE_SCALE;
-	const float SPAN_EPS = 1e-3f;
+// Minimum ratio between the smaller of the two main-pair faces and the
+// next-largest face for a brush to be treated as a plane-like slab. A true
+// cube has ratio 1; a slab thin in one axis grows the ratio with min(a,b)/t.
+#define PLANE_AREA_RATIO 2.0f
+// Two opposite faces of a brush have inward normals that are antiparallel,
+// so dot < this threshold means "opposite faces of a slab pair".
+#define PLANE_ANTIPARALLEL_DOT -0.99f
 
-	float u_min, u_max;
-	u_min = u_max = vec3_dot(poly->v[0], u_basis);
-	for(int i = 1; i < poly->n; i++){
-		float u = vec3_dot(poly->v[i], u_basis);
-		if(u < u_min) u_min = u;
-		if(u > u_max) u_max = u;
-	}
-	int u_lo = (int)floorf((u_min + SPAN_EPS) / TILE_WORLD);
-	int u_hi = (int)floorf((u_max - SPAN_EPS) / TILE_WORLD);
-	if(u_hi > u_lo){
-		float boundary = (float)(u_lo + 1) * TILE_WORLD;
-		poly_t neg, pos;
-		split_poly_plane(poly, u_basis, boundary, &neg, &pos);
-		emit_poly_projected(flvl, &neg, u_basis, v_basis, id);
-		emit_poly_projected(flvl, &pos, u_basis, v_basis, id);
-		return;
-	}
+static void emit_brush(face_plane_t* planes, int n){
+	vec3_t face_verts[MAX_PLANES_PER_BRUSH][MAX_VERTS_PER_FACE];
+	int face_nv[MAX_PLANES_PER_BRUSH] = {0};
+	vec3_t face_centroid[MAX_PLANES_PER_BRUSH];
+	float face_area[MAX_PLANES_PER_BRUSH] = {0};
 
-	float v_min, v_max;
-	v_min = v_max = vec3_dot(poly->v[0], v_basis);
-	for(int i = 1; i < poly->n; i++){
-		float v = vec3_dot(poly->v[i], v_basis);
-		if(v < v_min) v_min = v;
-		if(v > v_max) v_max = v;
-	}
-	int v_lo = (int)floorf((v_min + SPAN_EPS) / TILE_WORLD);
-	int v_hi = (int)floorf((v_max - SPAN_EPS) / TILE_WORLD);
-	if(v_hi > v_lo){
-		float boundary = (float)(v_lo + 1) * TILE_WORLD;
-		poly_t neg, pos;
-		split_poly_plane(poly, v_basis, boundary, &neg, &pos);
-		emit_poly_projected(flvl, &neg, u_basis, v_basis, id);
-		emit_poly_projected(flvl, &pos, u_basis, v_basis, id);
-		return;
-	}
-
-	for(int i = 1; i < poly->n - 1; i++){
-		write_triangle_tile(flvl, poly->v[0], poly->v[i], poly->v[i + 1],
-		                    u_basis, v_basis, u_lo, v_lo, id);
-	}
-}
-
-static void write_triangle_11(FILE* flvl, vec3_t a, vec3_t b, vec3_t c, uint16_t id){
-	uint16_t u[3] = { 0, 65535, 0 };
-	uint16_t v[3] = { 0, 0,     65535 };
-	float pa[3] = { a.x, a.y, a.z };
-	float pb[3] = { b.x, b.y, b.z };
-	float pc[3] = { c.x, c.y, c.z };
-	fwrite(pa, sizeof(float), 3, flvl);
-	fwrite(&u[0], sizeof(uint16_t), 1, flvl);
-	fwrite(&v[0], sizeof(uint16_t), 1, flvl);
-	fwrite(pb, sizeof(float), 3, flvl);
-	fwrite(&u[1], sizeof(uint16_t), 1, flvl);
-	fwrite(&v[1], sizeof(uint16_t), 1, flvl);
-	fwrite(pc, sizeof(float), 3, flvl);
-	fwrite(&u[2], sizeof(uint16_t), 1, flvl);
-	fwrite(&v[2], sizeof(uint16_t), 1, flvl);
-	fwrite(&id, sizeof(uint16_t), 1, flvl);
-}
-
-static void emit_brush(FILE* flvl, face_plane_t* planes, int n){
 	for(int i = 0; i < n; i++){
-		vec3_t verts[MAX_VERTS_PER_FACE];
+		vec3_t* verts = face_verts[i];
 		int nv = 0;
 		for(int j = 0; j < n; j++){
 			if(j == i) continue;
@@ -224,7 +143,10 @@ static void emit_brush(FILE* flvl, face_plane_t* planes, int n){
 				if(!dup && nv < MAX_VERTS_PER_FACE) verts[nv++] = p;
 			}
 		}
-		if(nv < 3) continue;
+		if(nv < 3){
+			face_nv[i] = 0;
+			continue;
+		}
 
 		vec3_t centroid = vec3(0.0f, 0.0f, 0.0f);
 		for(int q = 0; q < nv; q++) centroid = vec3_add(centroid, verts[q]);
@@ -251,17 +173,76 @@ static void emit_brush(FILE* flvl, face_plane_t* planes, int n){
 			}
 		}
 
+		float area = 0.0f;
+		for(int q = 1; q < nv - 1; q++){
+			vec3_t e1 = vec3_sub(verts[q], verts[0]);
+			vec3_t e2 = vec3_sub(verts[q + 1], verts[0]);
+			area += 0.5f * vec3_length(vec3_cross(e1, e2));
+		}
+
+		face_nv[i] = nv;
+		face_centroid[i] = centroid;
+		face_area[i] = area;
+	}
+
+	// Find the largest pair of opposite (antiparallel) faces — these are the
+	// "main" sides of a slab. For a true slab their combined area dominates the
+	// strips; for a cube it doesn't, and we leave the brush alone.
+	int main_a = -1, main_b = -1;
+	float best_pair_area = 0.0f;
+	for(int i = 0; i < n; i++){
+		if(face_nv[i] < 3) continue;
+		for(int j = i + 1; j < n; j++){
+			if(face_nv[j] < 3) continue;
+			if(vec3_dot(planes[i].n, planes[j].n) > PLANE_ANTIPARALLEL_DOT) continue;
+			float pair_area = face_area[i] + face_area[j];
+			if(pair_area > best_pair_area){
+				best_pair_area = pair_area;
+				main_a = i;
+				main_b = j;
+			}
+		}
+	}
+
+	int keep_only = -1;
+	if(main_a >= 0){
+		float max_other = 0.0f;
+		for(int i = 0; i < n; i++){
+			if(i == main_a || i == main_b) continue;
+			if(face_area[i] > max_other) max_other = face_area[i];
+		}
+		float min_main = face_area[main_a] < face_area[main_b] ? face_area[main_a] : face_area[main_b];
+		if(min_main > PLANE_AREA_RATIO * max_other){
+			// planes[i].n points INTO the brush, so outward = -planes[i].n.
+			// We want outward to point toward the origin, i.e.
+			//   dot(-planes[i].n, origin - centroid) > 0
+			// which reduces to dot(planes[i].n, centroid) > 0. Pick the larger
+			// of the two — handles slabs that don't straddle the origin and
+			// gracefully degrades to "either side" for ones that do.
+			float dot_a = vec3_dot(planes[main_a].n, face_centroid[main_a]);
+			float dot_b = vec3_dot(planes[main_b].n, face_centroid[main_b]);
+			keep_only = (dot_a > dot_b) ? main_a : main_b;
+		}
+	}
+
+	for(int i = 0; i < n; i++){
+		if(face_nv[i] < 3) continue;
+		if(keep_only >= 0 && i != keep_only) continue;
+
+		vec3_t* verts = face_verts[i];
+		int nv = face_nv[i];
+
 		if(planes[i].src_uv_is_11){
 			for(int q = 1; q < nv - 1; q++){
-				write_triangle_11(flvl, verts[0], verts[q], verts[q + 1], planes[i].texid);
+				write_triangle_11(verts[0], verts[q], verts[q + 1], planes[i].texid);
 			}
 		}else{
 			vec3_t u_basis, v_basis;
 			compute_face_basis(planes[i].n, &u_basis, &v_basis);
-			poly_t face;
-			face.n = (nv <= POLY_MAX_VERTS) ? nv : POLY_MAX_VERTS;
-			for(int q = 0; q < face.n; q++) face.v[q] = verts[q];
-			emit_poly_projected(flvl, &face, u_basis, v_basis, planes[i].texid);
+			for(int q = 1; q < nv - 1; q++){
+				write_triangle_projected(verts[0], verts[q], verts[q + 1],
+				                         u_basis, v_basis, planes[i].texid);
+			}
 		}
 	}
 }
@@ -274,9 +255,8 @@ int main(int argc, char** argv){
 	char* map_path = argv[1];
 	char* lvl_path = argv[2];
 	FILE* fmap = fopen(map_path, "r");
-	FILE* flvl = fopen(lvl_path, "wb");
-	if(!fmap || !flvl){
-		printf("failed to open files\n");
+	if(!fmap){
+		printf("failed to open input file\n");
 		return 1;
 	}
 
@@ -296,7 +276,7 @@ int main(int argc, char** argv){
 		}
 		if(line[p] == '}'){
 			if(depth == 2){
-				emit_brush(flvl, brush, n_brush);
+				emit_brush(brush, n_brush);
 				n_brush = 0;
 			}
 			depth--;
@@ -346,8 +326,53 @@ int main(int argc, char** argv){
 			n_brush++;
 		}
 	}
-
 	fclose(fmap);
+
+	// Build deduplicated vertex buffer
+	raw_vert_t* verts = malloc(n_raw_tris * 3 * sizeof(raw_vert_t));
+	uint32_t n_verts = 0;
+	uint32_t* indices = malloc(n_raw_tris * 3 * sizeof(uint32_t));
+
+	for(uint32_t t = 0; t < n_raw_tris; t++){
+		for(int vi = 0; vi < 3; vi++){
+			raw_vert_t rv = raw_tris[t].v[vi];
+			uint32_t found = n_verts;
+			for(uint32_t j = 0; j < n_verts; j++){
+				if(fabsf(verts[j].x - rv.x) < DEDUP_EPS &&
+				   fabsf(verts[j].y - rv.y) < DEDUP_EPS &&
+				   fabsf(verts[j].z - rv.z) < DEDUP_EPS &&
+				   fabsf(verts[j].u - rv.u) < UV_FLOAT_EPS &&
+				   fabsf(verts[j].v - rv.v) < UV_FLOAT_EPS){
+					found = j;
+					break;
+				}
+			}
+			if(found == n_verts) verts[n_verts++] = rv;
+			indices[t * 3 + vi] = found;
+		}
+	}
+
+	FILE* flvl = fopen(lvl_path, "wb");
+	if(!flvl){
+		printf("failed to open output file\n");
+		return 1;
+	}
+
+	fwrite(&n_verts,    sizeof(uint32_t), 1,               flvl);
+	fwrite(&n_raw_tris, sizeof(uint32_t), 1,               flvl);
+
+	for(uint32_t t = 0; t < n_raw_tris; t++)
+		fwrite(&raw_tris[t].texid, sizeof(uint16_t), 1, flvl);
+
+	fwrite(indices, sizeof(uint32_t),  n_raw_tris * 3, flvl);
+	fwrite(verts,   sizeof(raw_vert_t), n_verts,       flvl);
+
 	fclose(flvl);
+
+	printf("wrote %u verts, %u tris\n", n_verts, n_raw_tris);
+
+	free(raw_tris);
+	free(verts);
+	free(indices);
 	return 0;
 }

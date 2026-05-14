@@ -1,20 +1,16 @@
+#include <stdint.h>
+
 struct vertex {
 	float x, y, z;
-	int16_t u, v;
-};
-
-struct triangle_desc {
-	struct vertex vertices[3];
+	float u, v;
 };
 
 struct triangle_data {
-	struct triangle_desc* triangles;
-	uint32_t entries;
+	struct vertex* vertices;
+	uint32_t vertex_count;
+	uint32_t* indices;
 	uint16_t* texids;
+	uint32_t tri_count;
 };
-
-// struct vertex;
-// struct triangle_desc;
-// struct triangle_data;
 
 struct triangle_data* get_triangles(char* file);

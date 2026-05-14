@@ -38,8 +38,6 @@ void cleanup();
 
 void init(){
 	state.loaded_images = false;
-	player.rz = 35.0f;
-	player.ry = -12.0f;
 	
 	sg_setup(&(sg_desc){
 		.environment = sglue_environment(),
@@ -72,23 +70,22 @@ void init(){
 	char* file = "maps/unnamed-compile.lvl";
 	struct triangle_data* triangles = get_triangles(file);
 	state.bind.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc){
-		.data = (sg_range){ .ptr = triangles->triangles, .size = triangles->entries * sizeof(struct triangle_desc) },
+		.data = (sg_range){ .ptr = triangles->vertices, .size = triangles->vertex_count * sizeof(struct vertex) },
 		.label = "rectangle_vertices",
 	});
 
-	vertex_num = 3*triangles->entries;
+	state.bind.index_buffer = sg_make_buffer(&(sg_buffer_desc){
+		.usage.index_buffer = true,
+		.data = (sg_range){ .ptr = triangles->indices, .size = triangles->tri_count * 3 * sizeof(uint32_t) },
+		.label = "rectangle_indices",
+	});
 
-	free(triangles->triangles);
+	vertex_num = triangles->tri_count * 3;
+
+	free(triangles->vertices);
+	free(triangles->indices);
+	free(triangles->texids);
 	free(triangles);
-
-	// const uint16_t indices[] = {
-	// 	0, 1, 2,    1, 2, 3,
-	// };
-	//
-	// state.bind.index_buffer = sg_make_buffer(&(sg_buffer_desc){
-	// 	.usage.index_buffer = true,
-	// 	.data = SG_RANGE(indices),
-	// });
 
 	sg_shader rect_shd = sg_make_shader(rectangle_shader_desc(sg_query_backend()));
 
@@ -97,10 +94,10 @@ void init(){
 		.layout = {
 			.attrs = {
 				[ATTR_rectangle_pos].format = SG_VERTEXFORMAT_FLOAT3,
-				[ATTR_rectangle_texcoord0].format = SG_VERTEXFORMAT_USHORT2N,
+				[ATTR_rectangle_texcoord0].format = SG_VERTEXFORMAT_FLOAT2,
 			},
 		},
-		// .index_type = SG_INDEXTYPE_UINT16,
+		.index_type = SG_INDEXTYPE_UINT32,
 		.depth = {
 			.compare = SG_COMPAREFUNC_LESS_EQUAL,
 			.write_enabled = true,
