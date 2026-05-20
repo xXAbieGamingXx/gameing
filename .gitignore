@@ -1,5 +1,5 @@
 .vscode/
 builddir/
 .claude/
-image.png
-old_image.png
+textures.h
+triangle.glsl.h

@@ -3,8 +3,8 @@
 #define SOKOL_LOG_IMPL
 #define SOKOL_GLUE_IMPL
 #define SOKOL_TIME_IMPL
-#define VECMATH_GENERICS
 #define SOKOL_GLCORE
+#define VECMATH_GENERICS
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
@@ -15,11 +15,15 @@
 #include "sokol_time.h"
 #include "input.h"
 #include "util/vecmath.h"
-#include "rectangle.glsl.h"
+#include "triangle.glsl.h"
+#include "textures.h"
 #include "images.h"
 #include "player.h"
 #include "parse_map.h"
 #include "render.h"
+
+// TODO: config the pixel format, stuff like msaa
+// for gui use imgui and include the frame stuff inside the sg pass, draw after (probably)
 
 static struct{
 	sg_pipeline pip;
@@ -38,7 +42,7 @@ void cleanup();
 
 void init(){
 	state.loaded_images = false;
-	
+
 	sg_setup(&(sg_desc){
 		.environment = sglue_environment(),
 		.logger.func = slog_func,
@@ -59,42 +63,41 @@ void init(){
 		},
 	};
 
-	state.bind.views[VIEW_tex] = sg_alloc_view();
+	for(int i = 0; i < TEXTURE_COUNT; i++){
+		state.bind.views[i] = sg_alloc_view();
+	}
 
 	state.bind.samplers[SMP_smp] = sg_make_sampler(&(sg_sampler_desc){
 		.min_filter = SG_FILTER_LINEAR,
 		.mag_filter = SG_FILTER_LINEAR,
-		.label = "texture-test",
 	});
-	
+
 	char* file = "maps/unnamed-compile.lvl";
 	struct triangle_data* triangles = get_triangles(file);
 	state.bind.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc){
 		.data = (sg_range){ .ptr = triangles->vertices, .size = triangles->vertex_count * sizeof(struct vertex) },
-		.label = "rectangle_vertices",
 	});
 
 	state.bind.index_buffer = sg_make_buffer(&(sg_buffer_desc){
 		.usage.index_buffer = true,
 		.data = (sg_range){ .ptr = triangles->indices, .size = triangles->tri_count * 3 * sizeof(uint32_t) },
-		.label = "rectangle_indices",
 	});
 
 	vertex_num = triangles->tri_count * 3;
 
 	free(triangles->vertices);
 	free(triangles->indices);
-	free(triangles->texids);
 	free(triangles);
 
-	sg_shader rect_shd = sg_make_shader(rectangle_shader_desc(sg_query_backend()));
+	sg_shader tri_shd = sg_make_shader(triangle_shader_desc(sg_query_backend()));
 
 	state.pip = sg_make_pipeline(&(sg_pipeline_desc){
-		.shader = rect_shd,
+		.shader = tri_shd,
 		.layout = {
 			.attrs = {
-				[ATTR_rectangle_pos].format = SG_VERTEXFORMAT_FLOAT3,
-				[ATTR_rectangle_texcoord0].format = SG_VERTEXFORMAT_FLOAT2,
+				[ATTR_triangle_pos].format = SG_VERTEXFORMAT_FLOAT3,
+				[ATTR_triangle_texcoord0].format = SG_VERTEXFORMAT_FLOAT2,
+				[ATTR_triangle_texid].format = SG_VERTEXFORMAT_FLOAT,
 			},
 		},
 		.index_type = SG_INDEXTYPE_UINT32,
@@ -115,16 +118,18 @@ void frame(){
 	images_dowork();
 
 	if(!state.loaded_images && done_fetching){
-		sg_init_view(state.bind.views[VIEW_tex], &(sg_view_desc){
-			.texture = {.image = images[NERD_EMOJI_ID]},
-		});
+		for(int i = 0; i < TEXTURE_COUNT; i++){
+			sg_init_view(state.bind.views[i], &(sg_view_desc){
+				.texture = {.image = images[i]},
+			});
+		}
 		state.loaded_images = true;
 	}
 
 	delta_time = sapp_frame_duration();
 
 	move_player(delta_time);
-	
+
 	sg_begin_pass(&(sg_pass){
 		.action = state.pass_action,
 		.swapchain = sglue_swapchain(),
@@ -144,7 +149,6 @@ void cleanup(){
 
 void event(const sapp_event* ev){
 	handle_input(ev, &state.mouse);
-
 	player.rz -= state.mouse.dx*SENSITIVITY; // z is the one that does that
 	player.ry += state.mouse.dy*SENSITIVITY;
 	if(player.ry > 90.0f){
@@ -155,7 +159,7 @@ void event(const sapp_event* ev){
 }
 
 sapp_desc sokol_main(int argc, char* argv[]){
-	(void)argc; (void)argv; 
+	(void)argc; (void)argv;
 	return (sapp_desc) {
 		.width = 1280,
 		.height = 720,

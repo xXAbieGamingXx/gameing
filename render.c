@@ -5,7 +5,7 @@
 #include "sokol_gfx.h"
 #include "sokol_app.h"
 #include "util/vecmath.h"
-#include "rectangle.glsl.h"
+#include "triangle.glsl.h"
 
 #define FOV 60
 

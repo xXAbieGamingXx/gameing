@@ -7,27 +7,17 @@
 #include "sokol_log.h"
 #include "util/stb/stb_image.h"
 #include "util/fileutil.h"
+#include "textures.h"
+#include "images.h"
 
-// ids are in the h file
-
-char filepaths[][30] = {
-	"textures/image.png",
-};
-
-uint16_t file_count;
-uint8_t file_buffer[500000];
+static uint8_t file_buffer[2 * 1024 * 1024];
 
 bool done_fetching = false;
 
-struct image_dimensions {
-	int width, height;
-};
-
 struct image_dimensions* image_dimensions;
-
 sg_image* images;
 
-int current_image;
+static int current_image;
 
 static void fetch_cb(const sfetch_response_t* response);
 
@@ -37,20 +27,19 @@ void images_dowork(){
 
 void fetch_images(){
 	sfetch_setup(&(sfetch_desc_t){
-		.max_requests = 1,
+		.max_requests = TEXTURE_COUNT,
 		.num_channels = 1,
 		.num_lanes = 1,
 		.logger.func = slog_func,
 	});
 
-	file_count = sizeof(filepaths) / sizeof(filepaths[0]);
-	images = malloc(sizeof(sg_image) * file_count);
-	image_dimensions = malloc(sizeof(struct image_dimensions) * file_count);
+	images = malloc(sizeof(sg_image) * TEXTURE_COUNT);
+	image_dimensions = malloc(sizeof(struct image_dimensions) * TEXTURE_COUNT);
 
-	for(int i = 0; i < file_count; i++){
+	for(int i = 0; i < TEXTURE_COUNT; i++){
 		char path_buf[512];
 		sfetch_send(&(sfetch_request_t){
-			.path = fileutil_get_path(filepaths[i], path_buf, sizeof(path_buf)),
+			.path = fileutil_get_path(texture_paths[i], path_buf, sizeof(path_buf)),
 			.callback = fetch_cb,
 			.buffer = SFETCH_RANGE(file_buffer),
 		});
@@ -82,38 +71,18 @@ static void fetch_cb(const sfetch_response_t* response){
 				.pixel_format = SG_PIXELFORMAT_RGBA8,
 				.data.mip_levels[0] = {
 					.ptr = pixels,
-					.size = (size_t)(width * height * 4), // byte for r g b a
+					.size = (size_t)(width * height * 4),
 				},
 			});
 			stbi_image_free(pixels);
 		}
-	
 	}else if(response->finished){
-		printf("unfetched\n");
-		if(response->error_code == 0){
-			printf("no error\n");
-		}else if(response->error_code == 1){
-			printf("file not found\n");
-		}else if(response->error_code == 2){
-			printf("no buffer\n");
-		}else if(response->error_code == 3){
-			printf("buffer too small\n");
-		}else if(response->error_code == 4){
-			printf("unexpected eof\n");
-		}else if(response->error_code == 5){
-			printf("invalid http\n");
-		}else if(response->error_code == 6){
-			printf("cancelled\n");
-		}else if(response->error_code == 7){
-			printf("js other\n");
-		}
-		
-		if(response->failed){
-			printf("BIG FAIL ALERT\n");
-		}
+		printf("unfetched %s\n", response->path);
+		if(response->failed) printf("BIG FAIL ALERT\n");
 	}
-	current_image++;
-	if(current_image == file_count){
-		done_fetching = true;
+
+	if(response->finished){
+		current_image++;
+		if(current_image == TEXTURE_COUNT) done_fetching = true;
 	}
 }

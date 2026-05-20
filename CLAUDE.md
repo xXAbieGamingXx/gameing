@@ -5,6 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
  # User Guidelines
 
 NEVER commit without permission
+Write with the style of Stunk and White -- brief and to the point
+Keep comments short and descriptive, only give necessary technical info
+Don't use any typedefs
 
 ## Build
 
@@ -13,11 +16,13 @@ Build and run the game:
 ./build.sh
 ```
 
+**NEVER call `meson`, `ninja`, `gcc`, `cc`, or any compiler/build tool directly. Always use `./build.sh`.**
+
 Meson auto-runs `shdc.sh` to compile `rectangle.glsl` → `rectangle.glsl.h` before building. If the shader changes, a full recompile will pick it up automatically.
 
 ## Tests
 
-Run tests:
+Run tests — **always use `./test.sh`, never invoke the test binary or compiler directly**:
 ```sh
 ./test.sh
 ```

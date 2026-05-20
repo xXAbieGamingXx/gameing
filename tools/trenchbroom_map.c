@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <math.h>
 #include "util/vecmath.h"
+#include "textures.h"
 
 #define UV_TILE_SCALE 1024.0f
 #define MAX_PLANES_PER_BRUSH 64
@@ -22,19 +23,19 @@ typedef struct {
 	uint16_t texid;
 } face_plane_t;
 
-typedef struct { float x, y, z; float u, v; } raw_vert_t;
-typedef struct { raw_vert_t v[3]; uint16_t texid; } raw_tri_t;
+struct vert{ float x, y, z; float u, v; float texid; };
+struct triangle{ struct vert v[3]; uint16_t texid; };
 
-static raw_tri_t* raw_tris = NULL;
+static struct triangle* raw_tris = NULL;
 static uint32_t n_raw_tris = 0;
 static uint32_t cap_raw_tris = 0;
 
-static void push_tri(raw_vert_t a, raw_vert_t b, raw_vert_t c, uint16_t id){
+static void push_tri(struct vert a, struct vert b, struct vert c, uint16_t id){
 	if(n_raw_tris == cap_raw_tris){
 		cap_raw_tris = cap_raw_tris ? cap_raw_tris * 2 : 4096;
-		raw_tris = realloc(raw_tris, cap_raw_tris * sizeof(raw_tri_t));
+		raw_tris = realloc(raw_tris, cap_raw_tris * sizeof(struct triangle));
 	}
-	raw_tris[n_raw_tris] = (raw_tri_t){{a, b, c}, id};
+	raw_tris[n_raw_tris] = (struct triangle){{a, b, c}, id};
 	n_raw_tris++;
 }
 
@@ -81,10 +82,11 @@ static void compute_face_basis(vec3_t n, vec3_t* u_basis_out, vec3_t* v_basis_ou
 // src_uv_is_11 faces: stretch the texture across each triangle with UVs clamped
 // to [0, 1]. The GPU sampler (wrap=repeat) will simply show one copy of the texture.
 static void write_triangle_11(vec3_t a, vec3_t b, vec3_t c, uint16_t id){
+	float fid = (float)id;
 	push_tri(
-		(raw_vert_t){a.x, a.y, a.z, 0.0f, 0.0f},
-		(raw_vert_t){b.x, b.y, b.z, 1.0f, 0.0f},
-		(raw_vert_t){c.x, c.y, c.z, 0.0f, 1.0f},
+		(struct vert){a.x, a.y, a.z, 0.0f, 0.0f, fid},
+		(struct vert){b.x, b.y, b.z, 1.0f, 0.0f, fid},
+		(struct vert){c.x, c.y, c.z, 0.0f, 1.0f, fid},
 		id
 	);
 }
@@ -97,14 +99,15 @@ static void write_triangle_projected(vec3_t a, vec3_t b, vec3_t c,
 	const float tile_world = 65536.0f / UV_TILE_SCALE;
 	vec3_t verts[3] = { a, b, c };
 	float us[3], vs[3];
+	float fid = (float)id;
 	for(int i = 0; i < 3; i++){
 		us[i] = vec3_dot(verts[i], u_basis) / tile_world;
 		vs[i] = vec3_dot(verts[i], v_basis) / tile_world;
 	}
 	push_tri(
-		(raw_vert_t){a.x, a.y, a.z, us[0], vs[0]},
-		(raw_vert_t){b.x, b.y, b.z, us[1], vs[1]},
-		(raw_vert_t){c.x, c.y, c.z, us[2], vs[2]},
+		(struct vert){a.x, a.y, a.z, us[0], vs[0], fid},
+		(struct vert){b.x, b.y, b.z, us[1], vs[1], fid},
+		(struct vert){c.x, c.y, c.z, us[2], vs[2], fid},
 		id
 	);
 }
@@ -299,7 +302,19 @@ int main(int argc, char** argv){
 			coords[i] = strtof(number, NULL);
 		}
 		index += 3;
-		while(line[index] != ' ') index++;
+		char texname[64] = {0};
+		for(int j = 0; line[index] != ' ' && j < 63; j++){
+			texname[j] = line[index];
+			index++;
+		}
+
+		uint16_t face_texid = 0;
+		for(int t = 0; t < TEXTURE_COUNT; t++){
+			if(strcmp(texname, texture_names[t]) == 0){
+				face_texid = (uint16_t)t;
+				break;
+			}
+		}
 
 		float src_uv[2] = {0.0f, 0.0f};
 		for(int k = 0; k < 2; k++){
@@ -322,27 +337,28 @@ int main(int argc, char** argv){
 			brush[n_brush].n = nrm;
 			brush[n_brush].d = vec3_dot(nrm, a);
 			brush[n_brush].src_uv_is_11 = (src_uv[0] == 1.0f && src_uv[1] == 1.0f);
-			brush[n_brush].texid = 0;
+			brush[n_brush].texid = face_texid;
 			n_brush++;
 		}
 	}
 	fclose(fmap);
 
 	// Build deduplicated vertex buffer
-	raw_vert_t* verts = malloc(n_raw_tris * 3 * sizeof(raw_vert_t));
+	struct vert* verts = malloc(n_raw_tris * 3 * sizeof(struct vert));
 	uint32_t n_verts = 0;
 	uint32_t* indices = malloc(n_raw_tris * 3 * sizeof(uint32_t));
 
 	for(uint32_t t = 0; t < n_raw_tris; t++){
 		for(int vi = 0; vi < 3; vi++){
-			raw_vert_t rv = raw_tris[t].v[vi];
+			struct vert rv = raw_tris[t].v[vi];
 			uint32_t found = n_verts;
 			for(uint32_t j = 0; j < n_verts; j++){
 				if(fabsf(verts[j].x - rv.x) < DEDUP_EPS &&
 				   fabsf(verts[j].y - rv.y) < DEDUP_EPS &&
 				   fabsf(verts[j].z - rv.z) < DEDUP_EPS &&
 				   fabsf(verts[j].u - rv.u) < UV_FLOAT_EPS &&
-				   fabsf(verts[j].v - rv.v) < UV_FLOAT_EPS){
+				   fabsf(verts[j].v - rv.v) < UV_FLOAT_EPS &&
+				   verts[j].texid == rv.texid){
 					found = j;
 					break;
 				}
@@ -360,12 +376,8 @@ int main(int argc, char** argv){
 
 	fwrite(&n_verts,    sizeof(uint32_t), 1,               flvl);
 	fwrite(&n_raw_tris, sizeof(uint32_t), 1,               flvl);
-
-	for(uint32_t t = 0; t < n_raw_tris; t++)
-		fwrite(&raw_tris[t].texid, sizeof(uint16_t), 1, flvl);
-
 	fwrite(indices, sizeof(uint32_t),  n_raw_tris * 3, flvl);
-	fwrite(verts,   sizeof(raw_vert_t), n_verts,       flvl);
+	fwrite(verts,   sizeof(struct vert), n_verts,       flvl);
 
 	fclose(flvl);
 
