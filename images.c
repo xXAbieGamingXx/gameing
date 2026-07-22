@@ -10,7 +10,7 @@
 #include "textures.h"
 #include "images.h"
 
-static uint8_t file_buffer[2 * 1024 * 1024];
+static uint8_t file_buffer[3 * 1024 * 1024 + 100]; // supports 1024x1024 with no alpha with <= 100 bytes of non pixel info
 
 bool done_fetching = false;
 

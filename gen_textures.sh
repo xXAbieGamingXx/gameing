@@ -5,7 +5,7 @@ set -e
 
 cd "$(dirname "$0")"
 
-mapfile -t files < <(cd textures && ls *.png 2>/dev/null | LC_ALL=C sort)
+mapfile -t files < <(cd textures && ls *.png 2>/dev/null | LC_ALL=C sort | tr -d '\r')
 count=${#files[@]}
 if [ "$count" -eq 0 ]; then
 	echo "gen_textures.sh: no .png in textures/"

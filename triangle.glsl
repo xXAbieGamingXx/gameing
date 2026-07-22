@@ -21,6 +21,7 @@ void main(){
 
 @fs fs
 layout(binding=0) uniform texture2D tex0;
+layout(binding=1) uniform texture2D tex1;
 
 layout(binding=0) uniform sampler smp;
 
@@ -31,6 +32,7 @@ out vec4 frag_color;
 void main(){
 	switch(v_texid){
 		case 0: frag_color = texture(sampler2D(tex0, smp), uv); break;
+		case 1: frag_color = texture(sampler2D(tex1, smp), uv); break;
 
 		default: frag_color = vec4(1.0, 0.0, 1.0, 1.0); break;
 	}

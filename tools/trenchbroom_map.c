@@ -1,4 +1,5 @@
 #define VECMATH_GENERICS
+#define STB_IMAGE_IMPLEMENTATION
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -7,8 +8,7 @@
 #include <math.h>
 #include "util/vecmath.h"
 #include "textures.h"
-
-#define UV_TILE_SCALE 1024.0f
+#include "util/stb/stb_image.h"
 #define MAX_PLANES_PER_BRUSH 64
 #define MAX_VERTS_PER_FACE 64
 #define INTERSECT_EPS 1e-6f
@@ -16,12 +16,12 @@
 #define DEDUP_EPS 1e-3f
 #define UV_FLOAT_EPS 1e-4f
 
-typedef struct {
+struct face_plane{
 	vec3_t n;
 	float d;
 	bool src_uv_is_11;
 	uint16_t texid;
-} face_plane_t;
+};
 
 struct vert{ float x, y, z; float u, v; float texid; };
 struct triangle{ struct vert v[3]; uint16_t texid; };
@@ -29,6 +29,8 @@ struct triangle{ struct vert v[3]; uint16_t texid; };
 static struct triangle* raw_tris = NULL;
 static uint32_t n_raw_tris = 0;
 static uint32_t cap_raw_tris = 0;
+static int tex_w[TEXTURE_COUNT];
+static int tex_h[TEXTURE_COUNT];
 
 static void push_tri(struct vert a, struct vert b, struct vert c, uint16_t id){
 	if(n_raw_tris == cap_raw_tris){
@@ -39,7 +41,7 @@ static void push_tri(struct vert a, struct vert b, struct vert c, uint16_t id){
 	n_raw_tris++;
 }
 
-static int plane_intersect(face_plane_t a, face_plane_t b, face_plane_t c, vec3_t* out){
+static int plane_intersect(struct face_plane a, struct face_plane b, struct face_plane c, vec3_t* out){
 	vec3_t bxc = vec3_cross(b.n, c.n);
 	float denom = vec3_dot(a.n, bxc);
 	if(fabsf(denom) < INTERSECT_EPS) return 0;
@@ -52,7 +54,7 @@ static int plane_intersect(face_plane_t a, face_plane_t b, face_plane_t c, vec3_
 	return 1;
 }
 
-static int is_inside_all(vec3_t p, face_plane_t* planes, int n, int si, int sj, int sk){
+static int is_inside_all(vec3_t p, struct face_plane* planes, int n, int si, int sj, int sk){
 	for(int m = 0; m < n; m++){
 		if(m == si || m == sj || m == sk) continue;
 		if(vec3_dot(planes[m].n, p) - planes[m].d < -INSIDE_EPS) return 0;
@@ -91,18 +93,18 @@ static void write_triangle_11(vec3_t a, vec3_t b, vec3_t c, uint16_t id){
 	);
 }
 
-// Projects each vertex onto the face UV basis. UV 1.0 = one texture repeat
-// (UV_TILE_SCALE / 65536 world units per repeat). The GPU sampler handles
-// wrapping, so a face covering 8 repeats gets UVs in the range [N, N+8].
+// Projects each vertex onto the face UV basis. UV 1.0 = one texture repeat;
+// tile size equals the texture's pixel dimensions so 1 texel = 1 world unit.
 static void write_triangle_projected(vec3_t a, vec3_t b, vec3_t c,
                                      vec3_t u_basis, vec3_t v_basis, uint16_t id){
-	const float tile_world = 65536.0f / UV_TILE_SCALE;
+	float tile_u = (float)tex_w[id];
+	float tile_v = (float)tex_h[id];
 	vec3_t verts[3] = { a, b, c };
 	float us[3], vs[3];
 	float fid = (float)id;
 	for(int i = 0; i < 3; i++){
-		us[i] = vec3_dot(verts[i], u_basis) / tile_world;
-		vs[i] = vec3_dot(verts[i], v_basis) / tile_world;
+		us[i] = vec3_dot(verts[i], u_basis) / tile_u;
+		vs[i] = vec3_dot(verts[i], v_basis) / tile_v;
 	}
 	push_tri(
 		(struct vert){a.x, a.y, a.z, us[0], vs[0], fid},
@@ -120,7 +122,7 @@ static void write_triangle_projected(vec3_t a, vec3_t b, vec3_t c,
 // so dot < this threshold means "opposite faces of a slab pair".
 #define PLANE_ANTIPARALLEL_DOT -0.99f
 
-static void emit_brush(face_plane_t* planes, int n){
+static void emit_brush(struct face_plane* planes, int n){
 	vec3_t face_verts[MAX_PLANES_PER_BRUSH][MAX_VERTS_PER_FACE];
 	int face_nv[MAX_PLANES_PER_BRUSH] = {0};
 	vec3_t face_centroid[MAX_PLANES_PER_BRUSH];
@@ -263,7 +265,15 @@ int main(int argc, char** argv){
 		return 1;
 	}
 
-	face_plane_t brush[MAX_PLANES_PER_BRUSH];
+	int dummy;
+	for(int i = 0; i < TEXTURE_COUNT; i++){
+		if(!stbi_info(texture_paths[i], &tex_w[i], &tex_h[i], &dummy)){
+			printf("warn: can't read dims for %s, defaulting to 64\n", texture_paths[i]);
+			tex_w[i] = tex_h[i] = 64;
+		}
+	}
+
+	struct face_plane brush[MAX_PLANES_PER_BRUSH];
 	int n_brush = 0;
 	int depth = 0;
 	char line[256];
