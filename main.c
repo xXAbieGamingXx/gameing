@@ -135,7 +135,7 @@ void frame(){
 		.swapchain = sglue_swapchain(),
 	});
 
-	draw_vertices(state.pip, state.bind, vertex_num);
+	draw_vertices(state.pip, &state.bind, vertex_num);
 
 	sg_end_pass();
 	sg_commit();

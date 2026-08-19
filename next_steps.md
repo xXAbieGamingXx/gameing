@@ -3,7 +3,8 @@
 - dynamic surface rendering
 - dynamic surface collision
 - full object actions
-- threading
+- threading (also openmp) 
+- try nob?
 
 
 
