@@ -1,11 +1,11 @@
 #!/bin/bash
-base_url="https://raw.githubusercontent.com/floooh/sokol/refs/heads/master/" # this has the actual contents of the file
+cmds=("floooh/sokol sokol_app.h sokol_app.h" "floooh/sokol sokol_args.h sokol_args.h" "floooh/sokol sokol_audio.h sokol_audio.h" "floooh/sokol sokol_fetch.h sokol_fetch.h" \
+	"floooh/sokol sokol_gfx.h sokol_gfx.h" "floooh/sokol sokol_glue.h sokol_glue.h" "floooh/sokol sokol_log.h sokol_log.h" "floooh/sokol sokol_time.h sokol_time.h" \
+	"mattiasgustavsson/libs vecmath.h util/vecmath.h" "nothings/stb stb_image.h util/stb/stb_image.h")
 
-files=("sokol_app.h" "sokol_args.h" "sokol_audio.h" "sokol_fetch.h" "sokol_gfx.h" "sokol_glue.h" "sokol_log.h" "sokol_time.h")
-
-
-for file in "${files[@]}"
+for cmd in "${cmds[@]}"
 do
-	rm -rf $file
-	wget "$base_url$file"
+	./tools/git-file.sh $cmd
 done
+
+sed -i "1i #pragma GCC system_header" util/vecmath.h

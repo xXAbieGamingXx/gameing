@@ -1,0 +1,17 @@
+// @PointClass: entity that exists at a point: light, enemy, etc
+// @SolidClass: entity that has a brush attached to it: door, platform
+// @BaseClass: template of key value pairs that is inherited with base()
+
+@BaseClass = Angles [ 
+    pitch(integer) : "Pitch (Y)" : 0
+    yaw(integer) : "Yaw (Z)" : 0
+]
+
+@PointClass base(Angles) = player_spawn : "Player spawn" [ // could add player model (or bean) to this as well
+]
+
+@SolidClass = func_platform : "Moving platform" [
+	x(integer) : "X move distance" : 0
+	y(integer) : "Y move distance" : 0
+	z(integer) : "Z move distance" : 0
+]

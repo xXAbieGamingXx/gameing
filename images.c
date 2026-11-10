@@ -69,7 +69,7 @@ static void fetch_cb(const sfetch_response_t* response){
 				.width = width,
 				.height = height,
 				.pixel_format = SG_PIXELFORMAT_RGBA8,
-				.data.mip_levels[0] = {
+				.data = {
 					.ptr = pixels,
 					.size = (size_t)(width * height * 4),
 				},

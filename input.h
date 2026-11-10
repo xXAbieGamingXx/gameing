@@ -3,7 +3,7 @@
 typedef struct sapp_event sapp_event;
 typedef enum sapp_keycode sapp_keycode;
 
-struct mouse_state{
+struct mouse_state {
 	bool lmb, rmb, mmb;
 	float dx, dy, scroll;
 };

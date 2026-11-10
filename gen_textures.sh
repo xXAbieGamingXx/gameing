@@ -1,6 +1,4 @@
 #!/bin/bash
-# scans ./textures, alphabetical order = texid.
-# writes textures.h and expands triangle.glsl.in -> triangle.glsl
 set -e
 
 cd "$(dirname "$0")"
@@ -12,7 +10,6 @@ if [ "$count" -eq 0 ]; then
 	exit 1
 fi
 
-# textures.h: paths + ids
 {
 	echo "#pragma once"
 	echo "#define TEXTURE_COUNT $count"
@@ -29,7 +26,6 @@ fi
 	echo "};"
 } > textures.h
 
-# triangle.glsl: substitute @SAMPLER_BINDINGS@ and @SAMPLER_SWITCH@
 bindings=""
 cases=""
 for i in "${!files[@]}"; do

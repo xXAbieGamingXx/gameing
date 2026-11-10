@@ -1,5 +1,5 @@
-.vscode/
 builddir/
-.claude/
+CLAUDE.md
 textures.h
-triangle.glsl.h
+maps/autosave/
+*.glsl.h

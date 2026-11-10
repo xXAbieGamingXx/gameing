@@ -6,12 +6,9 @@ end with a single 0x0
 triangle information:
 (all xyz float, all uv uint16_t) (x, y, z), (u, v), (x, y, z), (u, v) (x, y, z), (u, v), (uint16_t) texid, (uint32_t) lightmap_offset
 
-have uvs be based on position to create contiguous textures
-ignore any existing uvs unless it is (1, 1), then DONT make the textures contiguous and make the vertices (0, 0), (1, 0), (0, 1)
+uvs come from the .map face's texture params (offset, rotation, scale), divided by texture size
+supports quake standard and valve 220 faces
 
-
->[!TODO]
-> replace redundant vertices by adding an index buffer
 
 > [!NOTE] Note
 > stored in little endian when reading but still should work when reading
@@ -37,3 +34,26 @@ be sure to use this to make sure it wont flush the instructions:
 ``` 
 
 each triangle lightmap ends with 0xFF
+
+#
+current layout:
+```
+uint32_t vertex_count, tri_count, node_count
+uint32_t indices[tri_count * 3]   (grouped by octree node)
+struct vertex vertices[vertex_count]
+struct octree_node nodes[node_count]   (see octree.h, node 0 is root)
+```
+each tri lives in the deepest node that fully holds it, so a node's tris are one contiguous index range
+
+entities follow the world (all but worldspawn and func_group, which are static and go in the world):
+```
+uint32_t entity_count
+per entity:
+    uint16_t type                   (enum entity_type, see entities.h)
+    int32_t params[entity_descs[type].params]   (int key values in .map order, classname and _ keys skipped)
+    uint32_t vertex_count, tri_count
+    uint32_t indices[tri_count * 3]
+    struct vertex vertices[vertex_count]
+```
+unknown classnames fail the conversion
+entity brushes skip planar culling since they move and can expose hidden faces

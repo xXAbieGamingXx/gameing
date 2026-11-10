@@ -777,7 +777,7 @@ munit_clock_get_elapsed(struct PsnipClockTimespec* start, struct PsnipClockTimes
  * important that it be reproducible, so bug reports have a better
  * chance of being reproducible. */
 
-#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L) && !(__STDC_VERSION__ >= 202311L) && !defined(__STDC_NO_ATOMICS__) && !defined(__EMSCRIPTEN__) && (!defined(__GNUC_MINOR__) || (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ > 8))
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L) && !defined(__STDC_NO_ATOMICS__) && !defined(__EMSCRIPTEN__) && (!defined(__GNUC_MINOR__) || (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ > 8))
 #  define HAVE_STDATOMIC
 #elif defined(__clang__)
 #  if __has_extension(c_atomic)
@@ -799,7 +799,7 @@ munit_clock_get_elapsed(struct PsnipClockTimespec* start, struct PsnipClockTimes
 #elif defined(HAVE_STDATOMIC)
 #  include <stdatomic.h>
 #  define ATOMIC_UINT32_T _Atomic uint32_t
-#  define ATOMIC_UINT32_INIT(x) ATOMIC_VAR_INIT(x)
+#  define ATOMIC_UINT32_INIT(x) (x)
 #elif defined(HAVE_CLANG_ATOMICS)
 #  define ATOMIC_UINT32_T _Atomic uint32_t
 #  define ATOMIC_UINT32_INIT(x) (x)
@@ -1243,28 +1243,6 @@ munit_test_runner_exec(MunitTestRunner* runner, const MunitTest* test, const Mun
 #  define MUNIT_RESULT_STRING_TODO  "TODO "
 #endif
 
-static FILE* munit_tmpfile(void) {
-    char path[MAX_PATH];
-    char filename[MAX_PATH];
-
-    if (!GetTempPathA(MAX_PATH, path))
-        return NULL;
-
-    if (!GetTempFileNameA(path, "mnt", 0, filename))
-        return NULL;
-
-    FILE* f = fopen(filename, "w+b");
-    if (!f) {
-        DeleteFileA(filename);
-        return NULL;
-    }
-
-    // Delete immediately so it behaves like tmpfile()
-    DeleteFileA(filename);
-
-    return f;
-}
-
 static void
 munit_test_runner_print_color(const MunitTestRunner* runner, const char* string, char color) {
   if (runner->colorize)
@@ -1350,7 +1328,7 @@ munit_test_runner_run_test_with_params(MunitTestRunner* runner, const MunitTest*
 
   stderr_buf = NULL;
 #if !defined(_WIN32) || defined(__MINGW32__)
-  stderr_buf = munit_tmpfile();
+  stderr_buf = tmpfile();
 #else
   tmpfile_s(&stderr_buf);
 #endif

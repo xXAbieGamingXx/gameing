@@ -1,6 +1,6 @@
-rm -rf builddir/gaming.exe
+rm -rf build/gaming.exe
 rm -rf tools/map_tool.exe
-CC=gcc CXX=g++ meson setup builddir --reconfigure -Dc_args="-std=c23 -g"
-meson compile -C builddir
-mv builddir/map_tool.exe tools/map_tool.exe
-builddir/gaming
+CC=gcc CXX=g++ meson setup build --reconfigure -Dc_args="-std=c23 -ggdb"
+meson compile -C build && build/gaming
+mv build/map_tool tools/
+echo "build done, running exe"

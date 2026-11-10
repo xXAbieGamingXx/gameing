@@ -1,0 +1,2 @@
+- can ping an api for time to see if game is running at full speed
+- verify records by replaying in obfuscated (hash checked???) code, also save records in obfuscated code into a binary format
