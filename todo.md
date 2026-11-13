@@ -1,7 +1,5 @@
-- dynamic surface rendering
-- dynamic surface collision
 - physics interpolation
-- full object actions 
 - 3d objects for enemies, trenchbroom is good enough for level geometry (look into gltf and sample)
 - threading (also openmp) 
 - actual movement
+- atlas for textures instead of switch (packrat), consider whether or not to do it for models

@@ -11,7 +11,7 @@ out vec4 color;
 
 void main() {
 	vec2 ndc = pos / screen * 2.0 - 1.0;
-	gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0); // y down, origin top-left
+	gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
 	uv = texcoord0;
 	color = color0;
 }
@@ -26,7 +26,6 @@ in vec4 color;
 out vec4 frag_color;
 
 void main() {
-	// negative uv marks an untextured quad
 	if(uv.x < 0.0) {
 		frag_color = color;
 	} else {

@@ -6,7 +6,6 @@
 #include "sokol_gfx.h"
 #include "sokol_log.h"
 #include "util/stb/stb_image.h"
-#include "util/fileutil.h"
 #include "textures.h"
 #include "images.h"
 
@@ -37,9 +36,8 @@ void fetch_images(){
 	image_dimensions = malloc(sizeof(struct image_dimensions) * TEXTURE_COUNT);
 
 	for(int i = 0; i < TEXTURE_COUNT; i++){
-		char path_buf[512];
 		sfetch_send(&(sfetch_request_t){
-			.path = fileutil_get_path(texture_paths[i], path_buf, sizeof(path_buf)),
+			.path = texture_paths[i],
 			.callback = fetch_cb,
 			.buffer = SFETCH_RANGE(file_buffer),
 		});

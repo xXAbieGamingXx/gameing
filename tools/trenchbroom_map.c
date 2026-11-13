@@ -9,7 +9,7 @@
 #include <math.h>
 
 #include "util/vecmath.h"
-#include "textures.h"
+#include "assets.h"
 #include "octree.h"
 #include "parse_map.h"
 #include "util/stb/stb_image.h"
@@ -51,6 +51,7 @@ struct map_entity {
 	uint16_t type;
 	int32_t params[MAX_ENTITY_PARAMS];
 	int n_params;
+	float origin[3];
 	struct tri_list tris;
 };
 
@@ -87,12 +88,10 @@ static struct map_entity* new_entity(void) {
 	return &entities[n_entities++];
 }
 
-// world and func_group (trenchbroom layers/groups) are static
 static bool is_static(struct map_entity* e) {
 	return strcmp(e->classname, "worldspawn") == 0 || strcmp(e->classname, "func_group") == 0;
 }
 
-// returns ENTITY_COUNT if classname is unknown
 static uint16_t entity_type_of(char* classname) {
 	for(uint16_t t = 0; t < ENTITY_COUNT; t++) {
 		if(strcmp(classname, entity_descs[t].name) == 0) return t;
@@ -178,7 +177,6 @@ static int build_face(struct face_plane* planes, int n, int i, vec3_t* out) {
 	return nv;
 }
 
-// quake standard axes: normal, s, t per face orientation
 static const vec3_t base_axis[18] = {
 	{0, 0, 1},  {1, 0, 0}, {0, -1, 0},
 	{0, 0, -1}, {1, 0, 0}, {0, -1, 0},
@@ -194,7 +192,6 @@ static int axis_index(vec3_t a) {
 	return 2;
 }
 
-// texture axes for quake standard format, as qbsp does it
 static void standard_axes(vec3_t n, float rot, float sx, float sy, vec3_t* u_out, vec3_t* v_out) {
 	int best = 0;
 	float best_dot = 0.0f;
@@ -256,7 +253,6 @@ static void write_face(struct tri_list* l, vec3_t* verts, int nv, struct face_pl
 #define PLANE_AREA_RATIO 2.0f
 #define PLANE_ANTIPARALLEL_DOT -0.99f
 
-// cull skips non-worldspawn brushes, which can move and expose hidden faces
 static void emit_brush(struct tri_list* l, struct face_plane* planes, int n, bool cull) {
 	vec3_t face_verts[MAX_PLANES_PER_BRUSH][MAX_VERTS_PER_FACE];
 	int face_nv[MAX_PLANES_PER_BRUSH];
@@ -430,7 +426,6 @@ static void build_octree(struct vert* verts, uint32_t* indices, uint32_t n_tris)
 	free(tri_hi);
 }
 
-// merges matching verts; verts and indices sized for l->n * 3
 static uint32_t dedup(struct tri_list* l, struct vert* verts, uint32_t* indices) {
 	uint32_t n_verts = 0;
 	for(uint32_t t = 0; t < l->n; t++) {
@@ -526,8 +521,12 @@ int main(int argc, char** argv) {
 				strcpy(ent->classname, value);
 				continue;
 			}
-			if(key[0] == '_') continue; // trenchbroom internal
-			// values may hold several ints, ie origin "x y z"
+			if(strcmp(key, "origin") == 0) {
+				sscanf(value, "%f %f %f", &ent->origin[0], &ent->origin[1], &ent->origin[2]);
+				continue;
+			}
+			if(key[0] == '_') continue;
+			// values may hold several ints
 			char* s = value;
 			char* end;
 			for(long v = strtol(s, &end, 10); end != s; v = strtol(s, &end, 10)) {
@@ -548,8 +547,6 @@ int main(int argc, char** argv) {
 		}
 		char* tex_args = line + p + consumed;
 
-		// valve 220: [ ux uy uz uoff ] [ vx vy vz voff ] rot sx sy
-		// standard:  uoff voff rot sx sy
 		float ua[4], va[4], rot, sx, sy;
 		bool valve = sscanf(tex_args, "[ %f %f %f %f ] [ %f %f %f %f ] %f %f %f",
 		                    &ua[0], &ua[1], &ua[2], &ua[3], &va[0], &va[1], &va[2], &va[3],
@@ -611,12 +608,16 @@ int main(int argc, char** argv) {
 	fwrite(nodes,   sizeof(struct octree_node), n_nodes, flvl);
 
 	fwrite(&n_entities, sizeof(uint32_t), 1, flvl);
+	// group by type
+	for(uint16_t t = 0; t < ENTITY_COUNT; t++)
 	for(uint32_t i = 0; i < n_entities; i++) {
 		struct map_entity* e = &entities[i];
+		if(e->type != t) continue;
 		struct vert* ev = malloc(e->tris.n * 3 * sizeof(struct vert));
 		uint32_t* ei = malloc(e->tris.n * 3 * sizeof(uint32_t));
 		uint32_t env = dedup(&e->tris, ev, ei);
 		fwrite(&e->type,   sizeof(uint16_t), 1, flvl);
+		fwrite(e->origin,  sizeof(float), 3, flvl); // 0 0 0 if unset
 		fwrite(e->params,  sizeof(int32_t), entity_descs[e->type].params, flvl); // unset params are 0
 		fwrite(&env,       sizeof(uint32_t), 1, flvl);
 		fwrite(&e->tris.n, sizeof(uint32_t), 1, flvl);

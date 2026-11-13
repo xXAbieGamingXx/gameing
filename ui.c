@@ -2,7 +2,6 @@
 #include "sokol_gfx.h"
 #include "sokol_app.h"
 #include "util/stb/stb_image.h"
-#include "util/fileutil.h"
 #include "ui.glsl.h"
 #include "ui.h"
 
@@ -63,9 +62,8 @@ void ui_init() {
 }
 
 bool ui_load_atlas(const char* path) {
-	char path_buf[512];
 	int w, h, channels;
-	stbi_uc* pixels = stbi_load(fileutil_get_path(path, path_buf, sizeof(path_buf)), &w, &h, &channels, 4);
+	stbi_uc* pixels = stbi_load(path, &w, &h, &channels, 4);
 	if(!pixels) {
 		printf("ui: failed to load atlas %s\n", path);
 		return false;
@@ -113,7 +111,7 @@ void ui_sprite(struct ui_box dst, struct ui_box src, uint32_t color) {
 	push_quad(dst, src.x / atlas_w, src.y / atlas_h, (src.x + src.w) / atlas_w, (src.y + src.h) / atlas_h, color);
 }
 
-void ui_draw() { // once per frame
+void ui_draw() {
 	if(vert_count == 0) return;
 
 	size_t size = vert_count * sizeof(struct ui_vertex);

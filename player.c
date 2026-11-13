@@ -6,6 +6,7 @@
 #include "sokol_app.h"
 #include "octree.h"
 #include "parse_map.h"
+#include "aabb.h"
 #include "constants.h"
 
 struct Player {
@@ -18,6 +19,7 @@ struct Player {
 #define PLAYER_RADIUS 16
 #define PLAYER_SKIN 0.1f // gap from walls
 #define SLIDE_ITERATIONS 3
+#define MAX_TOUCHING 32 // entities overlapping player per tick
 
 struct Player player = {0};
 
@@ -205,32 +207,67 @@ static int octree_path(struct octree_node* nodes, uint32_t path[OCTREE_MAX_DEPTH
 	}
 }
 
-static struct collision_test cast_player(struct octree_node* nodes, struct triangle_data* triangles, vec3_t movement) {
+static uint32_t touch_entities(struct triangle_data* triangles, float reach, struct entity** out) {
+	float min[3] = { player.x - PLAYER_RADIUS - reach, player.y - PLAYER_RADIUS - reach, player.z - PLAYER_HEIGHT - reach };
+	float max[3] = { player.x + PLAYER_RADIUS + reach, player.y + PLAYER_RADIUS + reach, player.z + reach };
+	struct entity* hits[MAX_TOUCHING];
+	uint32_t hit_count = aabb_query(triangles->aabb_nodes, triangles->aabb_node_count, min, max, hits, MAX_TOUCHING);
+
+	uint32_t solid_count = 0;
+	for(uint32_t i = 0; i < hit_count; i++) {
+		if(hits[i]->collide != NULL) {
+			hits[i]->collide(hits[i]);
+		} else {
+			out[solid_count++] = hits[i];
+		}
+	}
+	return solid_count;
+}
+
+static void cast_against(mat33_t triangle, vec3_t movement, struct collision_test* nearest) {
+	struct collision_test results = check_capsule_cast(capsule_feet(), capsule_top(), PLAYER_RADIUS, movement, triangle);
+	if(results.collision && results.t < nearest->t) {
+		*nearest = results;
+	}
+}
+
+static void push_out_of(mat33_t triangle) {
+	struct collision_test results = check_capsule_collision(capsule_feet(), capsule_top(), PLAYER_RADIUS, triangle);
+	if(results.collision) {
+		player_add_vector(results.vector);
+	}
+}
+
+static struct collision_test cast_player(struct octree_node* nodes, struct triangle_data* triangles, struct entity** solids, uint32_t solid_count, vec3_t movement) {
 	uint32_t path[OCTREE_MAX_DEPTH + 1];
 	int count = octree_path(nodes, path);
 	struct collision_test nearest = { .collision = false, .t = 2.0f };
 	for(int n = 0; n < count; n++) {
 		struct octree_node* node = &nodes[path[n]];
 		for(uint32_t i = node->first_tri; i < node->first_tri + node->tri_count; i++) {
-			struct collision_test results = check_capsule_cast(capsule_feet(), capsule_top(), PLAYER_RADIUS, movement, get_triangle_mat33(triangles, i));
-			if(results.collision && results.t < nearest.t) {
-				nearest = results;
-			}
+			cast_against(get_triangle_mat33(triangles, i), movement, &nearest);
+		}
+	}
+	for(uint32_t e = 0; e < solid_count; e++) {
+		for(uint32_t i = 0; i < solids[e]->tri_count; i++) {
+			cast_against(get_entity_triangle_mat33(triangles, solids[e], i), movement, &nearest);
 		}
 	}
 	return nearest;
 }
 
-static void push_out_of_triangles(struct octree_node* nodes, struct triangle_data* triangles) {
+static void push_out_of_triangles(struct octree_node* nodes, struct triangle_data* triangles, struct entity** solids, uint32_t solid_count) {
 	uint32_t path[OCTREE_MAX_DEPTH + 1];
 	int count = octree_path(nodes, path);
 	for(int n = 0; n < count; n++) {
 		struct octree_node* node = &nodes[path[n]];
 		for(uint32_t i = node->first_tri; i < node->first_tri + node->tri_count; i++) {
-			struct collision_test results = check_capsule_collision(capsule_feet(), capsule_top(), PLAYER_RADIUS, get_triangle_mat33(triangles, i));
-			if(results.collision) {
-				player_add_vector(results.vector);
-			}
+			push_out_of(get_triangle_mat33(triangles, i));
+		}
+	}
+	for(uint32_t e = 0; e < solid_count; e++) {
+		for(uint32_t i = 0; i < solids[e]->tri_count; i++) {
+			push_out_of(get_entity_triangle_mat33(triangles, solids[e], i));
 		}
 	}
 }
@@ -254,13 +291,17 @@ void player_frame(struct octree_node* nodes, struct triangle_data* triangles) {
 
 	vec3_t movement = vec3_add(x_movement, y_movement);
 
+	// sliding never travels further than the full movement
+	struct entity* solids[MAX_TOUCHING];
+	uint32_t solid_count = touch_entities(triangles, sqrtf(vec3_lengthsq(movement)) + PLAYER_SKIN, solids);
+
 	for(int i = 0; i < SLIDE_ITERATIONS; i++) {
 		float length = sqrtf(vec3_lengthsq(movement));
 		if(length < FLT_EPSILON) {
 			break;
 		}
 
-		struct collision_test hit = cast_player(nodes, triangles, movement);
+		struct collision_test hit = cast_player(nodes, triangles, solids, solid_count, movement);
 		if(!hit.collision) {
 			player_add_vector(movement);
 			break;
@@ -273,6 +314,6 @@ void player_frame(struct octree_node* nodes, struct triangle_data* triangles) {
 		movement = vec3_sub(movement, vec3_mulf(hit.normal, vec3_dot(movement, hit.normal)));
 	}
 
-	push_out_of_triangles(nodes, triangles);
+	push_out_of_triangles(nodes, triangles, solids, solid_count);
 }
 #endif

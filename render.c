@@ -19,15 +19,17 @@ void render_init() {
 	proj = mat44_perspective_fov_rh(vm_radians((float)FOV), w/h, .01f, 10000.0f);
 }
 
-void draw_vertices(sg_pipeline pip, sg_bindings* bind, uint32_t vertex_num) {
-	vec3_t direction = player_direction(); // dont want to look straight at (0, 0, 0)
-	direction.x += player.x;
-	direction.y += player.y;
-	direction.z += player.z;
-	mat44_t view = mat44_look_at_rh(vec3(player.x, player.y, player.z), direction, vec3(.0f, .0f, 1.0f));
+mat44_t get_view_proj(vec3_t eye) {
+	vec3_t direction = vec3_add(eye, player_direction());
+	mat44_t view = mat44_look_at_rh(eye, direction, vec3(.0f, .0f, 1.0f));
 	mat44_t view_proj = vm_mul(view, proj);
+	return view_proj;
+}
 
-	const mvp_params_t mvp_params = (mvp_params_t) {.mvp = view_proj};
+void draw_vertices(sg_pipeline pip, sg_bindings* bind, uint32_t vertex_num, vec3_t eye) {
+	mat44_t view_proj = get_view_proj(eye);
+
+	const mvp_params_t mvp_params = (mvp_params_t) { .mvp = view_proj };
 
 	sg_apply_pipeline(pip);
 	sg_apply_bindings(bind);

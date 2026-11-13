@@ -3,8 +3,7 @@
 // @BaseClass: template of key value pairs that is inherited with base()
 
 @BaseClass = Angles [ 
-    pitch(integer) : "Pitch (Y)" : 0
-    yaw(integer) : "Yaw (Z)" : 0
+    angle(integer) : "Yaw (Z)" : 0
 ]
 
 @PointClass base(Angles) = player_spawn : "Player spawn" [ // could add player model (or bean) to this as well

@@ -50,7 +50,8 @@ entities follow the world (all but worldspawn and func_group, which are static a
 uint32_t entity_count
 per entity:
     uint16_t type                   (enum entity_type, see entities.h)
-    int32_t params[entity_descs[type].params]   (int key values in .map order, classname and _ keys skipped)
+    float origin[3]                 ("origin" key, 0 0 0 if unset)
+    int32_t params[entity_descs[type].params]   (int key values in .map order, classname, origin and _ keys skipped)
     uint32_t vertex_count, tri_count
     uint32_t indices[tri_count * 3]
     struct vertex vertices[vertex_count]

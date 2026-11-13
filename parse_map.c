@@ -34,6 +34,9 @@ struct triangle_data* get_triangles(char* file) {
 		uint16_t type;
 		fread(&type, sizeof(uint16_t), 1, flvl);
 		e->type = type;
+		float origin[3];
+		fread(origin, sizeof(float), 3, flvl);
+		e->origin = vec3(origin[0], origin[1], origin[2]);
 		e->params = malloc(entity_descs[type].params * sizeof(int32_t));
 		fread(e->params, sizeof(int32_t), entity_descs[type].params, flvl);
 		fread(&e->vertex_count, sizeof(uint32_t), 1, flvl);
@@ -78,6 +81,8 @@ struct triangle_data* get_triangles(char* file) {
 	data->ent_vertex_count = ent_vertex_count;
 	data->ent_indices = ent_indices;
 	data->ent_tri_count = ent_tri_count;
+	data->aabb_nodes = NULL;
+	data->aabb_node_count = 0;
 	return data;
 }
 
@@ -91,4 +96,13 @@ mat33_t get_triangle_mat33(struct triangle_data* data, uint32_t tri) {
 	struct vertex v[3];
 	get_triangle_vertices(data, tri, v);
 	return mat33(vec3(v[0].x, v[0].y, v[0].z), vec3(v[1].x, v[1].y, v[1].z), vec3(v[2].x, v[2].y, v[2].z));
+}
+
+mat33_t get_entity_triangle_mat33(struct triangle_data* data, struct entity* entity, uint32_t tri) {
+	vec3_t v[3];
+	for(int i = 0; i < 3; i++) {
+		struct vertex* vertex = &data->ent_vertices[entity->indices[tri * 3 + i]]; // indices are into ent_vertices
+		v[i] = vec3(vertex->x, vertex->y, vertex->z);
+	}
+	return mat33(v[0], v[1], v[2]);
 }

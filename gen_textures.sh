@@ -3,7 +3,7 @@ set -e
 
 cd "$(dirname "$0")"
 
-mapfile -t files < <(cd textures && ls *.png 2>/dev/null | LC_ALL=C sort | tr -d '\r')
+mapfile -t files < <(cd assets/textures && ls *.png 2>/dev/null | LC_ALL=C sort | tr -d '\r')
 count=${#files[@]}
 if [ "$count" -eq 0 ]; then
 	echo "gen_textures.sh: no .png in textures/"
@@ -15,7 +15,7 @@ fi
 	echo "#define TEXTURE_COUNT $count"
 	echo "static const char* const texture_paths[TEXTURE_COUNT] = {"
 	for f in "${files[@]}"; do
-		echo "	\"textures/$f\","
+		echo "	\"assets/textures/$f\","
 	done
 	echo "};"
 	echo "static const char* const texture_names[TEXTURE_COUNT] = {"

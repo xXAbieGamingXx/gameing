@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
+#include <string.h>
 
 #include "sokol_gfx.h"
 #include "sokol_app.h"
@@ -25,27 +26,32 @@
 #include "input.h"
 #include "util/vecmath.h"
 #include "triangle.glsl.h"
-#include "textures.h"
+#include "assets.h"
 #include "images.h"
 #include "player.h"
 #include "parse_map.h"
 #include "render.h"
 #include "ui.h"
 #include "entities.h"
+#include "aabb.h"
 #include "constants.h"
+#include "model.h"
 
-// TODO: config the pixel format, stuff like msaa
-// for gui use imgui and include the frame stuff inside the sg pass, draw after (probably)
 
-static struct{
+static struct {
 	sg_pipeline pip;
 	sg_bindings bind;
 	sg_bindings ent_bind; // entity geometry, vertex buffer rewritten each frame
+	sg_bindings model_bind;
+	sg_pipeline model_pip;
+	sg_view model_views[ENTITY_COUNT];
 	sg_pass_action pass_action;
 	struct mouse_state mouse;
 	bool loaded_images;
 	struct triangle_data* triangles;
 	struct entity* entities;
+	struct vertex* ent_render; // ent_vertices offset to interpolated positions
+	vec3_t player_prev; // player position before last tick
 } state;
 
 #define SENSITIVITY .25f
@@ -90,6 +96,13 @@ void init() {
 		.mag_filter = SG_FILTER_LINEAR,
 	});
 
+	state.model_bind.samplers[SMP_smp] = sg_make_sampler(&(sg_sampler_desc) {
+		.min_filter = SG_FILTER_LINEAR,
+		.mag_filter = SG_FILTER_LINEAR,
+	});
+
+	state.model_bind.views[0] = sg_alloc_view();
+
 	char* file = "maps/untitled.lvl";
 	state.triangles = get_triangles(file);
 
@@ -121,6 +134,7 @@ void init() {
 		state.ent_bind.samplers[SMP_smp] = state.bind.samplers[SMP_smp];
 	}
 
+
 	sg_shader tri_shd = sg_make_shader(triangle_shader_desc(sg_query_backend()));
 
 	state.pip = sg_make_pipeline(&(sg_pipeline_desc) {
@@ -140,6 +154,7 @@ void init() {
 	});
 
 	state.entities = malloc(sizeof(struct entity)*state.triangles->entity_count);
+	uint16_t instances = 0;
 	for(int i = 0; i < state.triangles->entity_count; i++) {
 		state.entities[i].type = state.triangles->entities[i].type;
 		state.entities[i].params = state.triangles->entities[i].params;
@@ -149,12 +164,45 @@ void init() {
 		state.entities[i].tri_count = state.triangles->entities[i].tri_count;
 
 		state.entities[i].cb = entity_fptrs[state.entities[i].type].cb;
+		state.entities[i].collide = entity_fptrs[state.entities[i].type].collide;
 		state.entities[i].entity_values = NULL;
+		state.entities[i].position = malloc(sizeof(vec3_t));
+		*state.entities[i].position = state.triangles->entities[i].origin;
+		state.entities[i].rx = 0.0f;
+		state.entities[i].rz = 0.0f;
+
+		if(model_paths[state.entities[i].type] != NULL && state.entities[i].visible) {
+			model_instances[state.entities[i].type]++;
+			state.entities[i].instance_id = instances;
+			instances++;
+		} else {
+			state.entities[i].instance_id = -1;
+		}
+	}
+
+	total_instances = instances;
+
+	state.triangles->instance_positions = init_models(state.entities, instances, &state.model_bind, &state.model_pip, state.model_views);
+	vec3_t* pos_ptr = state.triangles->instance_positions;
+
+	for(uint32_t i = 0; i < state.triangles->entity_count; i++) {
+		if(state.entities[i].instance_id != -1) {
+			*pos_ptr = *state.entities[i].position;
+			free(state.entities[i].position);
+			state.entities[i].position = pos_ptr;
+			pos_ptr++;
+		}
 
 		if(entity_fptrs[state.entities[i].type].init != NULL) {
 			entity_fptrs[state.entities[i].type].init(&state.entities[i]);
 		}
+
+		state.entities[i].prev_position = *state.entities[i].position;
 	}
+	state.player_prev = vec3(player.x, player.y, player.z);
+	state.ent_render = malloc(state.triangles->ent_vertex_count * sizeof(struct vertex));
+
+	state.triangles->aabb_node_count = aabb_build(state.entities, state.triangles->entity_count, &state.triangles->aabb_nodes);
 
 	free(state.triangles->entities);
 }
@@ -163,12 +211,17 @@ void frame() {
 	acc += sapp_frame_duration();
 
 	while(acc >= TICK_LENGTH) {
+		state.player_prev = vec3(player.x, player.y, player.z);
+		for(uint32_t i = 0; i < state.triangles->entity_count; i++) {
+			state.entities[i].prev_position = *state.entities[i].position;
+		}
 		player_frame(state.triangles->nodes, state.triangles);
 		for(int i = 0; i < state.triangles->entity_count; i++) {
 			if(state.entities[i].cb != NULL) {
 				state.entities[i].cb(&state.entities[i]);
 			}
 		}
+		aabb_refit(state.triangles->aabb_nodes, state.triangles->aabb_node_count);
 		acc -= TICK_LENGTH;
 	}
 
@@ -194,17 +247,39 @@ void frame() {
 		.swapchain = sglue_swapchain(),
 	});
 
-	draw_vertices(state.pip, &state.bind, vertex_num);
+	float alpha = acc / TICK_LENGTH;
+	vec3_t eye = vec3_lerp(state.player_prev, vec3(player.x, player.y, player.z), alpha);
+
+	draw_vertices(state.pip, &state.bind, vertex_num, eye);
 
 	size_t size = state.triangles->ent_vertex_count * sizeof(struct vertex);
 	if(state.triangles->ent_vertex_count > 0) {
+		memcpy(state.ent_render, state.triangles->ent_vertices, size);
+		for(uint32_t i = 0; i < state.triangles->entity_count; i++) {
+			if(state.entities[i].visible && state.entities[i].instance_id == -1) {
+				struct entity* entity = &state.entities[i];
+				vec3_t lerped = vec3_lerp(entity->prev_position, *entity->position, alpha);
+				vec3_t offset = vec3_sub(lerped, *entity->position);
+				struct vertex* vertices = state.ent_render + (entity->vertices - state.triangles->ent_vertices);
+				for(uint32_t j = 0; j < entity->vertex_count; j++) {
+					vertices[j].x += offset.x;
+					vertices[j].y += offset.y;
+					vertices[j].z += offset.z;
+				}
+			}
+		}
+
 		sg_write_buffer_transient(&(sg_write_buffer_desc) {
 			.dst.buffer = state.ent_bind.vertex_buffers[0],
-			.src.data = { .ptr = state.triangles->ent_vertices, .size = size },
+			.src.data = { .ptr = state.ent_render, .size = size },
 			.size = size
 		});
-		draw_vertices(state.pip, &state.ent_bind, state.triangles->ent_tri_count * 3);
+		draw_vertices(state.pip, &state.ent_bind, state.triangles->ent_tri_count * 3, eye);
 	}
+
+	mat44_t view_proj = get_view_proj(eye);
+
+	render_models(state.model_pip, &state.model_bind, state.entities, state.triangles->entity_count, state.model_views, state.triangles->instance_positions, view_proj);
 
 	ui_rect((struct ui_box) {sapp_widthf()/2 - 2, sapp_heightf()/2 - 2, 4, 4}, 0xFFFFFFFF); // crosshair
 	ui_draw();
@@ -222,8 +297,10 @@ void cleanup() {
 		free(state.entities[i].entity_values);
 	}
 	free(state.triangles->ent_vertices);
+	free(state.ent_render);
 	free(state.triangles->ent_indices);
 	free(state.entities);
+	free(state.triangles->aabb_nodes);
 	free(state.triangles);
 	sg_shutdown();
 	image_shutdown();
