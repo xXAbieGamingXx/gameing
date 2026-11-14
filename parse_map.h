@@ -9,6 +9,7 @@ struct vertex {
 	float u, v;
 	float atlas;
 	float rect[4]; // u0, v0, u1, v1 in the atlas sheet
+	float lm[2]; // lightmap uv
 };
 
 struct entity_data {
@@ -37,6 +38,8 @@ struct triangle_data {
 	struct aabb_node* aabb_nodes;
 	uint32_t aabb_node_count;
 	vec3_t* instance_positions;
+	uint16_t lm_w, lm_h;
+	uint8_t* lm_rgb; // 3 bytes per luxel
 };
 
 struct triangle_data* get_triangles(char* file);

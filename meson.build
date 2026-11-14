@@ -18,7 +18,7 @@ foreach shader : shaders
 run_command('bash', ['./shdc.sh', shader], check: true)
 endforeach
 
-files = ['input.c', 'player.c', 'render.c', 'images.c', 'parse_map.c', 'ui.c', 'main.c', 'entities/platform.c', 'aabb.c', 'model.c', 'entities.c', 'entities/player_spawn.c']
+files = ['input.c', 'player.c', 'render.c', 'images.c', 'parse_map.c', 'ui.c', 'main.c', 'entities/platform.c', 'aabb.c', 'model.c', 'entities.c', 'entities/player_spawn.c', 'collision.c']
 
 exe = executable(
   'gaming',
@@ -27,7 +27,7 @@ exe = executable(
   dependencies : app_deps
 )
 
-map_tool_files = ['tools/trenchbroom_map.c', 'entities.c']
+map_tool_files = ['tools/trenchbroom_map.c', 'entities.c', 'collision.c']
 
 map_tool_files = executable(
   'map_tool',

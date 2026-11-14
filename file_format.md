@@ -3,8 +3,7 @@ header:
 (uint16_t) area_id, (uint32_t) start_offset, end_offset (to the triangles in the level data)
 end with a single 0x0
 
-triangle information:
-(all xyz float, all uv uint16_t) (x, y, z), (u, v), (x, y, z), (u, v) (x, y, z), (u, v), (uint32_t) lightmap_offset
+vertex: float x, y, z, u, v, atlas, rect[4], lm[2]   (lm is lightmap uv over the whole sheet)
 
 uvs come from the .map face's texture params (offset, rotation, scale), divided by texture size
 supports quake standard and valve 220 faces
@@ -35,4 +34,15 @@ per entity:
     struct vertex vertices[vertex_count]
 ```
 unknown classnames fail the conversion
+`light` entities are baked and dropped, never written
+
+lightmap follows the entities:
+```
+uint16_t lm_w, lm_h
+uint8_t rgb[lm_w * lm_h * 3]
+```
+light is stored at half, so 255 is 2x albedo (overbright). game pads to rgba8 on load
+one rect per brush face, 16 units per luxel (coarser for faces past 128 luxels), 1 luxel border
+direct light only: worldspawn `_ambient`, sun (`_sun_angle`, `_sun_color`, `_sun_light`), and `light` entities (`light` radius, `_color`)
+shadow rays hit world tris only; brush entities are baked where they spawn
 entity brushes skip planar culling since they move and can expose hidden faces

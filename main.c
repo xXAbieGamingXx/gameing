@@ -115,6 +115,33 @@ void init() {
 
 	vertex_num = state.triangles->tri_count * 3;
 
+	// gpus lack rgb8, pad to rgba8
+	uint32_t luxels = state.triangles->lm_w * state.triangles->lm_h;
+	uint8_t* lm_rgba = malloc(luxels * 4);
+	for(uint32_t i = 0; i < luxels; i++) {
+		memcpy(&lm_rgba[i * 4], &state.triangles->lm_rgb[i * 3], 3);
+		lm_rgba[i * 4 + 3] = 255;
+	}
+	sg_image lightmap = sg_make_image(&(sg_image_desc) {
+		.width = state.triangles->lm_w,
+		.height = state.triangles->lm_h,
+		.pixel_format = SG_PIXELFORMAT_RGBA8,
+		.data = { .ptr = lm_rgba, .size = luxels * 4 },
+	});
+	free(lm_rgba);
+	free(state.triangles->lm_rgb);
+	state.triangles->lm_rgb = NULL;
+
+	state.bind.views[VIEW_lightmap] = sg_make_view(&(sg_view_desc) {
+		.texture.image = lightmap,
+	});
+	state.bind.samplers[SMP_lm_smp] = sg_make_sampler(&(sg_sampler_desc) {
+		.min_filter = SG_FILTER_LINEAR,
+		.mag_filter = SG_FILTER_LINEAR,
+		.wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+		.wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+	});
+
 	if(state.triangles->ent_vertex_count > 0) {
 		state.ent_bind.vertex_buffers[0] = sg_make_buffer(&(sg_buffer_desc) {
 			.size = state.triangles->ent_vertex_count * sizeof(struct vertex),
@@ -130,6 +157,8 @@ void init() {
 			state.ent_bind.views[i] = state.bind.views[i];
 		}
 		state.ent_bind.samplers[SMP_smp] = state.bind.samplers[SMP_smp];
+		state.ent_bind.views[VIEW_lightmap] = state.bind.views[VIEW_lightmap];
+		state.ent_bind.samplers[SMP_lm_smp] = state.bind.samplers[SMP_lm_smp];
 	}
 
 
@@ -144,6 +173,7 @@ void init() {
 				[ATTR_triangle_texcoord0].format = SG_VERTEXFORMAT_FLOAT2,
 				[ATTR_triangle_atlasid].format = SG_VERTEXFORMAT_FLOAT,
 				[ATTR_triangle_rect].format = SG_VERTEXFORMAT_FLOAT4,
+				[ATTR_triangle_lmcoord].format = SG_VERTEXFORMAT_FLOAT2,
 			},
 		},
 		.index_type = SG_INDEXTYPE_UINT32,

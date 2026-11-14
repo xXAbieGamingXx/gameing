@@ -6,6 +6,18 @@
     angle(integer) : "Yaw (Z)" : 0
 ]
 
+@SolidClass = worldspawn : "World" [
+	_ambient(color255) : "Ambient light" : "0 0 0"
+	_sun_angle(string) : "Sun yaw pitch, pitch -90 is straight down" : "0 -90"
+	_sun_color(color255) : "Sun color" : "255 255 255"
+	_sun_light(float) : "Sun brightness, 1 is full, 0 is off" : "0"
+]
+
+@PointClass = light : "Point light" [
+	light(integer) : "Radius" : 300
+	_color(color255) : "Color" : "255 255 255"
+]
+
 @PointClass base(Angles) = player_spawn : "Player spawn" [ // could add player model (or bean) to this as well
 ]
 

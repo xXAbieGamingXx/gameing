@@ -66,6 +66,24 @@ struct triangle_data* get_triangles(char* file) {
 	free(vert_offsets);
 	free(tri_offsets);
 
+	uint16_t lm_w = 0, lm_h = 0;
+	fread(&lm_w, sizeof(uint16_t), 1, flvl);
+	fread(&lm_h, sizeof(uint16_t), 1, flvl);
+	uint8_t* lm_rgb = NULL;
+	if(lm_w && lm_h) {
+		lm_rgb = malloc((size_t)lm_w * lm_h * 3);
+		if(fread(lm_rgb, 3, (size_t)lm_w * lm_h, flvl) != (size_t)lm_w * lm_h) {
+			free(lm_rgb);
+			lm_rgb = NULL;
+		}
+	}
+	if(!lm_rgb) { // unlit map, 128 is 1x after overbright
+		printf("no lightmap in %s\n", file);
+		lm_w = lm_h = 1;
+		lm_rgb = malloc(3);
+		lm_rgb[0] = lm_rgb[1] = lm_rgb[2] = 128;
+	}
+
 	fclose(flvl);
 
 	struct triangle_data* data = malloc(sizeof(struct triangle_data));
@@ -83,6 +101,9 @@ struct triangle_data* get_triangles(char* file) {
 	data->ent_tri_count = ent_tri_count;
 	data->aabb_nodes = NULL;
 	data->aabb_node_count = 0;
+	data->lm_w = lm_w;
+	data->lm_h = lm_h;
+	data->lm_rgb = lm_rgb;
 	return data;
 }
 
