@@ -7,35 +7,29 @@ layout(binding = 0) uniform mvp_params{
 
 in vec4 pos;
 in vec2 texcoord0;
-in float texid;
+in float atlasid;
+in vec4 rect;
 out vec2 uv;
-flat out int v_texid;
+out float atlas;
 
 void main(){
 	gl_Position = mvp * pos;
-	uv = texcoord0;
-	v_texid = int(texid);
+	uv = mix(rect.xy, rect.zw, texcoord0);
+	atlas = atlasid;
 }
 
 @end
 
 @fs fs
-layout(binding=0) uniform texture2D tex0;
-layout(binding=1) uniform texture2D tex1;
-
+layout(binding=0) uniform texture2DArray tex;
 layout(binding=0) uniform sampler smp;
 
 in vec2 uv;
-flat in int v_texid;
+in float atlas;
 out vec4 frag_color;
 
 void main(){
-	switch(v_texid){
-		case 0: frag_color = texture(sampler2D(tex0, smp), uv); break;
-		case 1: frag_color = texture(sampler2D(tex1, smp), uv); break;
-
-		default: frag_color = vec4(1.0, 0.0, 1.0, 1.0); break;
-	}
+	frag_color = texture(sampler2DArray(tex, smp), vec3(uv, atlas));
 }
 
 @end

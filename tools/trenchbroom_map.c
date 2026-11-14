@@ -10,6 +10,7 @@
 
 #include "util/vecmath.h"
 #include "assets.h"
+#include "atlas.h"
 #include "octree.h"
 #include "parse_map.h"
 #include "util/stb/stb_image.h"
@@ -34,11 +35,11 @@ struct face_plane {
 struct vert {
 	float x, y, z;
 	float u, v;
-	float texid;
+	float atlas;
+	float rect[4]; // u0, v0, u1, v1 in the atlas sheet
 };
 struct triangle {
-	struct vert v[3]; 
-	uint16_t texid;
+	struct vert v[3];
 };
 
 struct tri_list {
@@ -61,8 +62,9 @@ static uint32_t n_entities = 0;
 static uint32_t cap_entities = 0;
 static int tex_w[TEXTURE_COUNT];
 static int tex_h[TEXTURE_COUNT];
+static const struct atlas_image* tex_atlas[TEXTURE_COUNT];
 
-static void push_tri(struct tri_list* l, struct vert a, struct vert b, struct vert c, uint16_t id) {
+static void push_tri(struct tri_list* l, struct vert a, struct vert b, struct vert c) {
 	if(l->n == l->cap) {
 		if(l->cap) {
 			l->cap *= 2;
@@ -71,7 +73,7 @@ static void push_tri(struct tri_list* l, struct vert a, struct vert b, struct ve
 		}
 		l->tris = realloc(l->tris, l->cap * sizeof(struct triangle));
 	}
-	l->tris[l->n] = (struct triangle) {{a, b, c}, id};
+	l->tris[l->n] = (struct triangle) {{a, b, c}};
 	l->n++;
 }
 
@@ -230,7 +232,9 @@ static void standard_axes(vec3_t n, float rot, float sx, float sy, vec3_t* u_out
 }
 
 static struct vert make_vert(vec3_t p, float u, float v, uint16_t id) {
-	return (struct vert) {p.x, p.y, p.z, u, v, (float)id};
+	const struct atlas_image* a = tex_atlas[id];
+	if(!a) return (struct vert) {p.x, p.y, p.z, u, v, 0.0f, {0.0f, 0.0f, 1.0f, 1.0f}};
+	return (struct vert) {p.x, p.y, p.z, u, v, (float)a->atlas, {a->u0, a->v0, a->u1, a->v1}};
 }
 
 static void write_face(struct tri_list* l, vec3_t* verts, int nv, struct face_plane p) {
@@ -246,7 +250,7 @@ static void write_face(struct tri_list* l, vec3_t* verts, int nv, struct face_pl
 			float v = (vec3_dot(tri[k], p.v_axis) + p.v_off) / th;
 			out[k] = make_vert(tri[k], u, v, p.texid);
 		}
-		push_tri(l, out[0], out[1], out[2], p.texid);
+		push_tri(l, out[0], out[1], out[2]);
 	}
 }
 
@@ -438,7 +442,8 @@ static uint32_t dedup(struct tri_list* l, struct vert* verts, uint32_t* indices)
 				   fabsf(verts[j].z - rv.z) < DEDUP_EPS &&
 				   fabsf(verts[j].u - rv.u) < UV_FLOAT_EPS &&
 				   fabsf(verts[j].v - rv.v) < UV_FLOAT_EPS &&
-				   verts[j].texid == rv.texid) {
+				   verts[j].atlas == rv.atlas &&
+				   memcmp(verts[j].rect, rv.rect, sizeof(rv.rect)) == 0) {
 					found = j;
 					break;
 				}
@@ -469,6 +474,10 @@ int main(int argc, char** argv) {
 			printf("warn: can't read dims for %s, defaulting to 64\n", texture_paths[i]);
 			tex_w[i] = tex_h[i] = 64;
 		}
+		for(int j = 0; j < ATLAS_IMAGE_COUNT; j++) {
+			if(strcmp(texture_names[i], atlas_images[j].name) == 0) tex_atlas[i] = &atlas_images[j];
+		}
+		if(!tex_atlas[i]) printf("warn: %s not in atlas, using all of sheet 0\n", texture_names[i]);
 	}
 
 	struct face_plane brush[MAX_PLANES_PER_BRUSH];

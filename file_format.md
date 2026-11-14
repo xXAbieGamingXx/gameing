@@ -4,7 +4,7 @@ header:
 end with a single 0x0
 
 triangle information:
-(all xyz float, all uv uint16_t) (x, y, z), (u, v), (x, y, z), (u, v) (x, y, z), (u, v), (uint16_t) texid, (uint32_t) lightmap_offset
+(all xyz float, all uv uint16_t) (x, y, z), (u, v), (x, y, z), (u, v) (x, y, z), (u, v), (uint32_t) lightmap_offset
 
 uvs come from the .map face's texture params (offset, rotation, scale), divided by texture size
 supports quake standard and valve 220 faces
@@ -12,28 +12,6 @@ supports quake standard and valve 220 faces
 
 > [!NOTE] Note
 > stored in little endian when reading but still should work when reading
-
-#
-lightmap format (currently supports up to 256x256):
-
-pixels are this format:
-```c 
-struct lightmap_pixel {
-        unsigned char flag : 1;
-        unsigned char pixel : 7;
-};
-``` 
-
-the flag is used to skip empty space, the amount to skip is determined by the next line's pixel (and flag if need to support 256)
-in all other cases, the other 7 bits determine change of the color shade of that pixel, 64 is no change
-
-be sure to use this to make sure it wont flush the instructions:
-```c 
-#define likely(x) __builtin_expect(!!(x), 1) // makes the compiler make this branch more likely
-#define unlikely(x) __builtin_expect(!!(x), 0) // makes the compiler make this branch less likely
-``` 
-
-each triangle lightmap ends with 0xFF
 
 #
 current layout:

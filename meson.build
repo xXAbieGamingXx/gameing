@@ -13,8 +13,6 @@ gl_dep = dependency('vulkan')
 x11_deps = [dependency('x11'), dependency('xi'), dependency('xcursor')]
 app_deps = [m_dep, dl_dep, thread_dep, gl_dep] + x11_deps
 
-run_command('bash', ['./gen_textures.sh'], check: true)
-
 shaders = ['triangle.glsl', 'ui.glsl', 'model.glsl']
 foreach shader : shaders
 run_command('bash', ['./shdc.sh', shader], check: true)
@@ -28,15 +26,6 @@ exe = executable(
   install : true,
   dependencies : app_deps
 )
-
-# test_files = ['util/vecmath.h', 'player.c', 'player.h', 'test/test.c', 'test/munit.c', 'test/munit.h']
-#
-# test = executable(
-#   'unittest',
-#   test_files,
-#   c_args : ['-DTEST'],
-#   dependencies : [m_dep]
-# )
 
 map_tool_files = ['tools/trenchbroom_map.c', 'entities.c']
 
@@ -55,4 +44,12 @@ glb_tool_files = executable(
   dependencies : [m_dep],
 )
 
-# test('test cases', test)
+add_languages('cpp', native : false)
+
+rect_pack_files = ['assets/rect_pack/main.cpp', 'assets/rect_pack/rect_pack.cpp', 'assets/rect_pack/MaxRectsBinPack.cpp', 'assets/rect_pack/stb_rect_pack.cpp']
+
+rect_pack_exe = executable(
+  'rect_pack',
+  rect_pack_files,
+  cpp_args : ['-std=c++17'],
+)

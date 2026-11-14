@@ -1,5 +1,4 @@
-- physics interpolation
-- 3d objects for enemies, trenchbroom is good enough for level geometry (look into gltf and sample)
-- threading (also openmp) 
+- lighting
+
+- threading (entities, audio already handled)
 - actual movement
-- atlas for textures instead of switch (packrat), consider whether or not to do it for models

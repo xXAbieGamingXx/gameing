@@ -36,7 +36,7 @@
 #include "aabb.h"
 #include "constants.h"
 #include "model.h"
-
+#include "atlas.h"
 
 static struct {
 	sg_pipeline pip;
@@ -87,9 +87,7 @@ void init() {
 		},
 	};
 
-	for(int i = 0; i < TEXTURE_COUNT; i++) {
-		state.bind.views[i] = sg_alloc_view();
-	}
+	state.bind.views[0] = sg_alloc_view();
 
 	state.bind.samplers[SMP_smp] = sg_make_sampler(&(sg_sampler_desc) {
 		.min_filter = SG_FILTER_LINEAR,
@@ -140,10 +138,12 @@ void init() {
 	state.pip = sg_make_pipeline(&(sg_pipeline_desc) {
 		.shader = tri_shd,
 		.layout = {
+			.buffers[0].stride = sizeof(struct vertex),
 			.attrs = {
 				[ATTR_triangle_pos].format = SG_VERTEXFORMAT_FLOAT3,
 				[ATTR_triangle_texcoord0].format = SG_VERTEXFORMAT_FLOAT2,
-				[ATTR_triangle_texid].format = SG_VERTEXFORMAT_FLOAT,
+				[ATTR_triangle_atlasid].format = SG_VERTEXFORMAT_FLOAT,
+				[ATTR_triangle_rect].format = SG_VERTEXFORMAT_FLOAT4,
 			},
 		},
 		.index_type = SG_INDEXTYPE_UINT32,
@@ -170,6 +170,7 @@ void init() {
 		*state.entities[i].position = state.triangles->entities[i].origin;
 		state.entities[i].rx = 0.0f;
 		state.entities[i].rz = 0.0f;
+		state.entities[i].visible = true; // init runs after instance count
 
 		if(model_paths[state.entities[i].type] != NULL && state.entities[i].visible) {
 			model_instances[state.entities[i].type]++;
@@ -234,11 +235,9 @@ void frame() {
 	images_dowork();
 
 	if(!state.loaded_images && done_fetching) {
-		for(int i = 0; i < TEXTURE_COUNT; i++) {
-			sg_init_view(state.bind.views[i], &(sg_view_desc) {
-				.texture = {.image = images[i]},
-			});
-		}
+		sg_init_view(state.bind.views[0], &(sg_view_desc) {
+			.texture.image = atlas_array,
+		});
 		state.loaded_images = true;
 	}
 

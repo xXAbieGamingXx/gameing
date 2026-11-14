@@ -7,7 +7,8 @@
 struct vertex {
 	float x, y, z;
 	float u, v;
-	float texid;
+	float atlas;
+	float rect[4]; // u0, v0, u1, v1 in the atlas sheet
 };
 
 struct entity_data {
